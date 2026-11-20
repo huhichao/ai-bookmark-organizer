@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const ROOT = path.resolve('.');
-const ASSETS_DIR = path.join(ROOT, 'assets');
+const ASSETS_DIR = process.env.ABO_SHOT_DIR || path.join(os.tmpdir(), 'abo-e2e-shots');
 fs.mkdirSync(ASSETS_DIR, { recursive: true });
 
 function findChromium() {
@@ -140,7 +140,9 @@ async function main() {
     chromeExe,
     [
       '--headless=new',
+      '--no-sandbox',
       '--disable-gpu',
+      '--disable-crash-reporter',
       '--no-first-run',
       '--no-default-browser-check',
       `--remote-debugging-port=${port}`,
@@ -149,8 +151,10 @@ async function main() {
       '--window-size=1280,800',
       'about:blank',
     ],
-    { stdio: 'ignore' }
+    { stdio: ['ignore', 'pipe', 'pipe'] }
   );
+  let stderrBuf = '';
+  proc.stderr.on('data', (d) => { stderrBuf += d.toString(); });
 
   const consoleErrors = [];
 
@@ -278,7 +282,16 @@ async function main() {
 
     const previewRes = await spCdp.eval(`
       (() => {
-        document.getElementById('btnToggleManual').click();
+        const box = document.getElementById('manualBox');
+        const initialDisplay = getComputedStyle(box).display;
+        if (initialDisplay !== 'none') {
+          throw new Error('Expected manualBox to start hidden, got: ' + initialDisplay);
+        }
+        document.getElementById('tabManualMode').click();
+        const toggledDisplay = getComputedStyle(box).display;
+        if (toggledDisplay !== 'flex') {
+          throw new Error('Expected manualBox to become flex after tab click, got: ' + toggledDisplay);
+        }
         document.getElementById('manualJsonInput').value = ${JSON.stringify(JSON.stringify(manualPlan))};
         document.getElementById('btnParseManual').click();
         return {
@@ -348,6 +361,7 @@ async function main() {
     assert.equal(consoleErrors.length, 0, `Unexpected runtime exceptions: ${JSON.stringify(consoleErrors)}`);
     console.log('[e2e] ALL REAL CHROMIUM E2E CHECKS PASSED!');
   } finally {
+    if (stderrBuf) console.log('[e2e:chrome-stderr]', stderrBuf.slice(-500));
     try {
       mockServer.close();
     } catch {}

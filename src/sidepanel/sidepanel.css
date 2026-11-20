@@ -35,6 +35,13 @@ body {
   line-height: 1.5;
 }
 
+.sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -42,9 +49,49 @@ body {
   padding: 12px 14px;
   background: var(--card);
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+}
+
+.status-wrap {
+  padding: 8px 12px 0;
+}
+
+.status-banner {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  border: 1px solid transparent;
+}
+
+.status-banner.info {
+  background: rgba(37, 99, 235, 0.09);
+  border-color: rgba(37, 99, 235, 0.25);
+  color: var(--primary);
+}
+
+.status-banner.loading {
+  background: rgba(217, 119, 6, 0.12);
+  border-color: rgba(217, 119, 6, 0.35);
+  color: #b45309;
+}
+
+.status-banner.ok {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.35);
+  color: #15803d;
+}
+
+.status-banner.err {
+  background: rgba(220, 38, 38, 0.11);
+  border-color: rgba(220, 38, 38, 0.35);
+  color: var(--danger);
+}
+
+@media (prefers-color-scheme: dark) {
+  .status-banner.loading { color: #fbbf24; }
+  .status-banner.ok { color: #4ade80; }
 }
 
 .topbar h1 {
@@ -170,16 +217,63 @@ button:disabled {
 }
 
 .hidden {
-  display: none;
+  display: none !important;
 }
 
-.manual-box {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--border);
+.mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  margin-bottom: 10px;
+}
+
+.mode-tab {
+  background: transparent;
+  color: var(--muted);
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mode-tab.active {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.mode-pane {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.manual-box {
+  margin-top: 2px;
+}
+
+.step-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.step-list li {
+  line-height: 1.45;
+}
+
+.step-btn {
+  display: block;
+  margin-top: 6px;
+  width: 100%;
 }
 
 textarea {

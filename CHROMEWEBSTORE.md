@@ -95,5 +95,6 @@ Chinese (Simplified)
 
 | Version | Date | Summary |
 |---------|------|---------|
+| 0.1.2 | 2026-11-20 | Move Side Panel status feedback to a sticky color-coded banner below the header, add button loading states, and auto-sync settings changes from Options. |
 | 0.1.1 | 2026-11-20 | Show inline AI connection/validation status directly in Options AI card, add 20s fetch timeout, and skip redundant permission prompts for pre-granted manifest hosts. |
 | 0.1.0 | 2026-11-20 | Initial Manifest V3 project scaffold with side panel UI, snapshot undo, local analyzer/dedup, Built-in AI + BYOK + manual JSON modes. |

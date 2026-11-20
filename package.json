@@ -1,6 +1,6 @@
 {
   "name": "ai-bookmark-organizer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "AI-powered Chrome bookmark organizer extension built with Manifest V3 and Modern Web Guidance.",
