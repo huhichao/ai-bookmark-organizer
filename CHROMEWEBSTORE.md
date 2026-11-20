@@ -23,6 +23,16 @@ AI 书签整理助手
 隐私与安全说明
 你的 API Key 与书签快照仅保存在本地浏览器中。扩展不会收集、上传或出售你的书签数据到开发者服务器；当你主动使用云端模型时，仅会发送脱敏后的书签标题与简化网址（自动剔除查询参数中的敏感字段）到你自行指定的模型服务商。
 
+开源与反馈
+本项目采用 MIT 协议开源，欢迎在 GitHub 查阅源码或提交建议与反馈：
+https://github.com/huhichao/ai-bookmark-organizer
+
+**Official Website / Homepage URL** [RECOMMENDED]
+https://github.com/huhichao/ai-bookmark-organizer
+
+**Support URL** [RECOMMENDED]
+https://github.com/huhichao/ai-bookmark-organizer/issues
+
 **Category** [REQUIRED]
 Productivity
 
