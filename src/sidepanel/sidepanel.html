@@ -29,7 +29,7 @@
       <div class="stats-grid">
         <div class="stat">
           <span class="stat-val" id="statTotal">-</span>
-          <span class="stat-label" data-i18n="statTotal">总书签</span>
+          <span class="stat-label" data-i18n="statTotal">范围内书签</span>
         </div>
         <div class="stat">
           <span class="stat-val accent" id="statActive">-</span>
@@ -45,10 +45,20 @@
         </div>
       </div>
       <p class="hint" id="scanNote">...</p>
+
+      <div class="scope-mode-row">
+        <label for="quickScopeMode" data-i18n="scopeModeLabel">整理策略</label>
+        <select id="quickScopeMode">
+          <option value="recent_archive" data-i18n="scopeModeRecentArchive">近期 AI 分类 + 超期自动归档（推荐）</option>
+          <option value="all_ai" data-i18n="scopeModeAllAi">全部交由 AI 重新分类</option>
+          <option value="recent_only" data-i18n="scopeModeRecentOnly">仅整理近期，超期保持原位</option>
+        </select>
+      </div>
+
       <div class="scope-toggles">
         <label><input id="quickIncludeArchived" type="checkbox" /> <span data-i18n="scopeIncludeArchived">包含「历史归档」内书签</span></label>
-        <label><input id="quickIgnoreDate" type="checkbox" /> <span data-i18n="scopeIgnoreDate">忽略天数全量分类</span></label>
-        <label><input id="quickExtractFrequent" type="checkbox" /> <span data-i18n="scopeExtractFrequent">提取近期访问到「常用」</span></label>
+        <label><input id="quickIncludeOther" type="checkbox" /> <span data-i18n="scopeIncludeOther">包含「其他书签」</span></label>
+        <label><input id="quickExtractFrequent" type="checkbox" /> <span data-i18n="scopeExtractFrequent">提取「常用」置顶文件夹</span></label>
       </div>
     </section>
 
@@ -65,13 +75,22 @@
 
       <div id="apiModePane" class="mode-pane">
         <p class="hint" data-i18n="apiModeHint">直接调用你在「设置」中配置的大模型 API（或 Chrome 内置 AI）自动生成分类方案。</p>
+        <div id="apiKeyNotice" class="callout hidden">
+          <p data-i18n="apiKeyMissingBanner">当前提供商尚未配置 API Key，请前往设置填写，或使用免费的免 Key 网页 AI 模式。</p>
+          <div class="callout-actions">
+            <button id="btnNoticeSettings" class="btn-secondary" type="button" data-i18n="btnGoSettings">前往设置</button>
+            <button id="btnNoticeManual" class="btn-ghost" type="button" data-i18n="btnSwitchManual">切到免 Key 模式</button>
+          </div>
+        </div>
         <div class="actions-row">
           <button id="btnAiPlan" class="btn-primary" type="button" data-i18n="btnAiPlan">AI 智能分类预览</button>
+          <button id="btnStopAiPlan" class="btn-danger hidden" type="button" data-i18n="btnStopAiPlan">停止生成</button>
         </div>
       </div>
 
       <div id="manualBox" class="mode-pane manual-box hidden">
         <p class="hint" data-i18n="manualIntro">无需配置 API Key，借用网页版 DeepSeek / ChatGPT / Claude 等免费完成分类：</p>
+        <p id="manualLargeWarn" class="callout-warn hidden"></p>
         <ol class="step-list">
           <li>
             <span data-i18n="manualStep1">点击复制脱敏书签清单与提示词（已自动剥离 URL 参数保护隐私）</span>
@@ -84,11 +103,18 @@
         <button id="btnParseManual" class="btn-primary" type="button" data-i18n="btnParseManual">3. 解析 JSON 生成预览</button>
       </div>
 
-      <div id="previewBox" class="preview-box hidden">
-        <h3 data-i18n="previewTitle">整理方案预览</h3>
+      <section id="previewBox" class="preview-box hidden" aria-labelledby="previewHeading">
+        <div class="preview-head">
+          <h3 id="previewHeading" data-i18n="previewTitle">整理方案预览</h3>
+          <button id="btnTogglePreviewAll" class="btn-ghost btn-compact" type="button" aria-expanded="false">
+            <span class="expand" data-i18n="previewExpandAll">全部展开</span>
+            <span class="collapse" data-i18n="previewCollapseAll">全部折叠</span>
+          </button>
+        </div>
         <div id="previewSummary" class="preview-summary"></div>
+        <p id="previewNotes" class="preview-note hidden"></p>
         <div id="previewTree" class="preview-tree"></div>
-      </div>
+      </section>
     </section>
 
     <section class="card">
@@ -99,6 +125,7 @@
         <button id="btnApply" class="btn-primary" type="button" disabled data-i18n="btnApply">应用整理方案</button>
         <button id="btnUndo" class="btn-danger" type="button" disabled data-i18n="btnUndo">撤销上次整理</button>
       </div>
+      <p id="undoMeta" class="hint hidden"></p>
     </section>
   </main>
 

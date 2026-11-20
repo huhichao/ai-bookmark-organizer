@@ -1,4 +1,48 @@
+import { SCOPE_MODES } from './constants.js';
 import { cleanBookmarkTitle } from './sanitizer.js';
+
+export function resolveScopeBehavior({
+  scopeMode,
+  onlyRecent = false,
+  archiveNonRecent = true,
+} = {}) {
+  let resolvedMode = scopeMode;
+  if (
+    resolvedMode !== SCOPE_MODES.RECENT_ARCHIVE &&
+    resolvedMode !== SCOPE_MODES.ALL_AI &&
+    resolvedMode !== SCOPE_MODES.RECENT_ONLY
+  ) {
+    if (onlyRecent) resolvedMode = SCOPE_MODES.RECENT_ONLY;
+    else if (archiveNonRecent === false) resolvedMode = SCOPE_MODES.ALL_AI;
+    else resolvedMode = SCOPE_MODES.RECENT_ARCHIVE;
+  }
+
+  if (resolvedMode === SCOPE_MODES.RECENT_ONLY) {
+    return {
+      scopeMode: SCOPE_MODES.RECENT_ONLY,
+      onlyRecent: true,
+      archiveNonRecent: false,
+      ignoreDateCutoff: false,
+      shouldArchiveNonRecent: false,
+    };
+  }
+  if (resolvedMode === SCOPE_MODES.ALL_AI) {
+    return {
+      scopeMode: SCOPE_MODES.ALL_AI,
+      onlyRecent: false,
+      archiveNonRecent: false,
+      ignoreDateCutoff: true,
+      shouldArchiveNonRecent: false,
+    };
+  }
+  return {
+    scopeMode: SCOPE_MODES.RECENT_ARCHIVE,
+    onlyRecent: false,
+    archiveNonRecent: true,
+    ignoreDateCutoff: false,
+    shouldArchiveNonRecent: true,
+  };
+}
 
 export function findBookmarksBar(root) {
   const children = root.children || [];
@@ -16,32 +60,50 @@ export function findOtherBookmarks(root) {
   );
 }
 
+export function findMobileBookmarks(root) {
+  const children = root.children || [];
+  return children.find((c) => c.folderType === 'mobile' || c.id === '3') || null;
+}
+
 /**
  * Analyze a Chrome bookmark tree into stats, duplicates, active items, and historical items.
  */
 export function analyzeBookmarkTree(tree, options = {}) {
   const {
+    scopeMode,
     recentDays = 365,
     includeRootLoose = true,
+    includeOtherBookmarks = false,
     includeArchived = false,
-    ignoreDateCutoff = false,
-    extractFrequent = false,
-    frequentDays = 90,
-    frequentMaxCount = 12,
+    onlyRecent = false,
+    archiveNonRecent = true,
     nowMs = Date.now(),
     archiveFolderName = '历史归档',
   } = options;
 
+  const behavior = resolveScopeBehavior({ scopeMode, onlyRecent, archiveNonRecent });
+  const ignoreDateCutoff = options.ignoreDateCutoff !== undefined
+    ? Boolean(options.ignoreDateCutoff)
+    : behavior.ignoreDateCutoff;
+
   const root = Array.isArray(tree) ? tree[0] : tree;
   const bar = findBookmarksBar(root);
+  const other = findOtherBookmarks(root);
   const cutoffMs = nowMs - recentDays * 24 * 60 * 60 * 1000;
-  const frequentCutoffMs = nowMs - frequentDays * 24 * 60 * 60 * 1000;
 
   const allUrls = [];
   const emptyFolders = [];
   let folderCount = 0;
 
-  function walk(node, pathParts, isUnderBarRoot = false) {
+  // Determine roots in scope: always Bookmarks Bar; optionally Other Bookmarks.
+  // Mobile Bookmarks (and any other special synced roots) are never altered.
+  const rootsToWalk = [];
+  if (bar) rootsToWalk.push({ node: bar, rootType: 'bar' });
+  if (includeOtherBookmarks && other && other.id !== bar?.id) {
+    rootsToWalk.push({ node: other, rootType: 'other' });
+  }
+
+  function walk(node, pathParts, rootType, isUnderBarRoot = false) {
     if (node.url) {
       const added = node.dateAdded || 0;
       const used = node.dateLastUsed || 0;
@@ -52,6 +114,7 @@ export function analyzeBookmarkTree(tree, options = {}) {
       allUrls.push({
         id: String(node.id),
         parentId: String(node.parentId || ''),
+        rootType,
         title: node.title || '',
         cleanTitle: cleanBookmarkTitle(node.title),
         url: node.url,
@@ -60,22 +123,27 @@ export function analyzeBookmarkTree(tree, options = {}) {
         lastActive,
         isLooseOnBar,
         isRecent,
+        pathSegments: [...pathParts],
         parentPath: pathParts.join(' / '),
       });
       return;
     }
 
-    if (node.id !== root.id && node.id !== '0') {
+    const isRootContainer =
+      node.id === root.id ||
+      node.id === '0' ||
+      Boolean(node.folderType) ||
+      node.id === '1' ||
+      node.id === '2' ||
+      node.id === '3';
+
+    if (!isRootContainer) {
       folderCount++;
     }
     const children = node.children || [];
     if (
-      node.id !== root.id &&
-      node.id !== '0' &&
-      !node.folderType &&
-      node.id !== '1' &&
-      node.id !== '2' &&
-      node.id !== '3' &&
+      !isRootContainer &&
+      node.title !== archiveFolderName &&
       children.length === 0
     ) {
       emptyFolders.push({
@@ -88,11 +156,13 @@ export function analyzeBookmarkTree(tree, options = {}) {
     const nextPath = node.title ? [...pathParts, node.title] : pathParts;
     for (const ch of children) {
       const childIsLoose = bar && node.id === bar.id && Boolean(ch.url);
-      walk(ch, nextPath, childIsLoose);
+      walk(ch, nextPath, rootType, childIsLoose);
     }
   }
 
-  walk(root, [], false);
+  for (const entry of rootsToWalk) {
+    walk(entry.node, [], entry.rootType, false);
+  }
 
   // Deduplicate exact URLs: prefer loose-on-bar, then latest activity
   const byUrl = new Map();
@@ -120,29 +190,20 @@ export function analyzeBookmarkTree(tree, options = {}) {
     }
   }
 
-  // Optional: extract recently visited bookmarks (by Chrome dateLastUsed) before AI classification
-  let frequentItems = [];
-  const frequentIds = new Set();
-  if (extractFrequent && frequentMaxCount > 0) {
-    frequentItems = keptItems
-      .filter((item) => {
-        const inArchiveAlready = item.parentPath.includes(archiveFolderName);
-        if (!includeArchived && inArchiveAlready) return false;
-        return item.dateLastUsed && item.dateLastUsed >= frequentCutoffMs;
-      })
-      .sort((a, b) => b.dateLastUsed - a.dateLastUsed)
-      .slice(0, frequentMaxCount);
-    for (const item of frequentItems) frequentIds.add(item.id);
-  }
+  const isInsideArchive = (item) => item.pathSegments.includes(archiveFolderName);
 
+  // "Frequent" selection is decided holistically by AI (using title, URL, folderHint, and optional lastUsedAt).
+  const frequentItems = [];
   const activeItems = [];
   const historicalItems = [];
   for (const item of keptItems) {
-    if (frequentIds.has(item.id)) continue;
-    const inArchiveAlready = item.parentPath.includes(archiveFolderName);
+    const inArchiveAlready = isInsideArchive(item);
     const passesArchiveFilter = includeArchived || !inArchiveAlready;
+    // When user explicitly includes archived bookmarks, bring archived items into AI scope
+    // even if their original timestamp is older than recentDays.
     const passesRecencyFilter =
       ignoreDateCutoff ||
+      (includeArchived && inArchiveAlready) ||
       (includeRootLoose && item.isLooseOnBar) ||
       item.isRecent;
     if (passesArchiveFilter && passesRecencyFilter) {
@@ -168,6 +229,7 @@ export function analyzeBookmarkTree(tree, options = {}) {
       historicalCount: historicalItems.length,
       dirtyTitleCount,
     },
+    includeOtherBookmarks: Boolean(includeOtherBookmarks),
     frequentItems,
     activeItems,
     historicalItems,

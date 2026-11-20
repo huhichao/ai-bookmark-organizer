@@ -489,16 +489,21 @@ async function main() {
         }
         document.getElementById('manualJsonInput').value = ${JSON.stringify(JSON.stringify(manualPlan))};
         document.getElementById('btnParseManual').click();
+        document.getElementById('btnTogglePreviewAll').click();
+        const allOpenAfterExpand = [...document.querySelectorAll('#previewTree details')].every((d) => d.open);
         return {
           summary: document.getElementById('previewSummary').textContent,
           folderTitles: [...document.querySelectorAll('#previewTree .folder-title')].map((e) => e.textContent),
           applyDisabled: document.getElementById('btnApply').disabled,
+          allOpenAfterExpand,
         };
       })()
     `);
     console.log('[e2e] Preview rendered:', previewRes);
     assert.equal(previewRes.applyDisabled, false);
+    assert.equal(previewRes.allOpenAfterExpand, true);
     assert.ok(previewRes.folderTitles.some((t) => t.startsWith('AI 对话与工具')));
+    assert.ok(previewRes.folderTitles.some((t) => t.startsWith('即将清理的重复网址')));
 
     const spShot = await spCdp.send('Page.captureScreenshot', { format: 'png' });
 
@@ -575,12 +580,14 @@ async function main() {
         return {
           status: document.getElementById('statusText').textContent,
           barFolders: bar.children.map((c) => ({ title: c.title, count: (c.children || []).length })),
+          applyDisabledAfter: document.getElementById('btnApply').disabled,
           undoDisabled: document.getElementById('btnUndo').disabled,
         };
       })()
     `);
     console.log('[e2e] After apply:', JSON.stringify(afterApply));
     assert.ok(afterApply.status.includes('整理完成'));
+    assert.equal(afterApply.applyDisabledAfter, true);
     assert.equal(afterApply.undoDisabled, false);
     assert.ok(afterApply.barFolders.some((f) => f.title === '历史归档'));
 
@@ -598,12 +605,16 @@ async function main() {
         return {
           status: document.getElementById('statusText').textContent,
           barChildCount: bar.children.length,
+          firstId: bar.children[0]?.id,
+          secondTitle: bar.children[1]?.title,
         };
       })()
     `);
     console.log('[e2e] After undo:', afterUndo);
     assert.ok(afterUndo.status.includes('已恢复'));
     assert.equal(afterUndo.barChildCount, 6); // 5 loose URLs + 1 folder '早期资料'
+    assert.equal(afterUndo.firstId, seededIds.b1);
+    assert.equal(afterUndo.secondTitle, '\u200c\ufeff通往 AGI 之路');
 
     for (const ev of spCdp.events) {
       if (ev.method === 'Runtime.exceptionThrown') consoleErrors.push(ev.params);

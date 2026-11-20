@@ -1,4 +1,4 @@
-import { analyzeBookmarkTree } from '../core/analyzer.js';
+import { analyzeBookmarkTree, resolveScopeBehavior } from '../core/analyzer.js';
 import { applyOrganizationPlan } from '../core/applier.js';
 import { PROVIDER_PRESETS, STORAGE_KEYS, getProviderLabel } from '../core/constants.js';
 import { applyI18nToDocument, getLocalizedDefaults, resolveLanguage, t } from '../core/i18n.js';
@@ -15,6 +15,8 @@ let currentPlan = null;
 let currentSettings = null;
 let currentLang = 'en';
 let lastStatusSpec = null;
+let activePlanAbortController = null;
+let isBusy = false;
 
 const el = (id) => document.getElementById(id);
 
@@ -32,6 +34,45 @@ function setStatusKey(key, vars = {}, kind = 'info') {
   node.className = `status-banner ${kind}`;
 }
 
+function clearPreview() {
+  currentPlan = null;
+  el('previewBox').classList.add('hidden');
+  el('previewTree').replaceChildren();
+  el('previewSummary').textContent = '';
+  el('previewNotes').classList.add('hidden');
+  el('previewNotes').textContent = '';
+  el('btnApply').disabled = true;
+  el('btnTogglePreviewAll').setAttribute('aria-expanded', 'false');
+}
+
+function updateToggleAllButtonState() {
+  const items = el('previewTree').querySelectorAll(':scope > details');
+  const allOpen = items.length > 0 && Array.prototype.every.call(items, (d) => d.open);
+  el('btnTogglePreviewAll').setAttribute('aria-expanded', String(allOpen));
+}
+
+function updateApiActionUi() {
+  if (!currentSettings) return;
+  const preset = PROVIDER_PRESETS[currentSettings.provider];
+  const activeCount = currentAnalysis?.stats?.activeCount ?? 0;
+  const needsKeyNow = Boolean(preset?.needsKey && !currentSettings.apiKey && activeCount > 0);
+  el('apiKeyNotice').classList.toggle('hidden', !needsKeyNow);
+
+  if (!isBusy) {
+    el('btnAiPlan').textContent = activeCount === 0
+      ? t('btnLocalPlan', {}, currentLang)
+      : t('btnAiPlan', {}, currentLang);
+  }
+
+  const largeWarn = el('manualLargeWarn');
+  if (activeCount > 100) {
+    largeWarn.textContent = t('manualLargeWarn', { count: activeCount }, currentLang);
+    largeWarn.classList.remove('hidden');
+  } else {
+    largeWarn.classList.add('hidden');
+  }
+}
+
 async function refreshHeaderAndSnapshot() {
   currentSettings = await loadSettings();
   currentLang = resolveLanguage(currentSettings.uiLanguage);
@@ -39,27 +80,38 @@ async function refreshHeaderAndSnapshot() {
 
   const label = getProviderLabel(currentSettings.provider, currentLang);
   el('modelBadge').textContent = `${label} · ${currentSettings.model || t('modelUnset', {}, currentLang)}`;
+
+  const behavior = resolveScopeBehavior(currentSettings);
+  el('quickScopeMode').value = behavior.scopeMode;
   el('quickIncludeArchived').checked = Boolean(currentSettings.includeArchived);
-  el('quickIgnoreDate').checked = Boolean(currentSettings.ignoreDateCutoff);
+  el('quickIncludeOther').checked = Boolean(currentSettings.includeOtherBookmarks);
   el('quickExtractFrequent').checked = Boolean(currentSettings.extractFrequent);
 
   const snap = await getLastSnapshot();
-  el('btnUndo').disabled = !snap;
+  el('btnUndo').disabled = !snap || isBusy;
+  const undoMeta = el('undoMeta');
+  if (snap) {
+    const dt = new Date(snap.createdAt).toLocaleString();
+    undoMeta.textContent = t('undoSnapMeta', { dt, count: snap.totalUrls }, currentLang);
+    undoMeta.classList.remove('hidden');
+  } else {
+    undoMeta.classList.add('hidden');
+  }
+  updateApiActionUi();
 }
 
 async function scanBookmarks() {
   currentSettings = await loadSettings();
   currentLang = resolveLanguage(currentSettings.uiLanguage);
   const locDefaults = getLocalizedDefaults(currentLang);
+  const behavior = resolveScopeBehavior(currentSettings);
   const tree = await chrome.bookmarks.getTree();
   currentAnalysis = analyzeBookmarkTree(tree, {
+    scopeMode: behavior.scopeMode,
     recentDays: currentSettings.recentDays,
     includeRootLoose: currentSettings.includeRootLoose,
+    includeOtherBookmarks: Boolean(currentSettings.includeOtherBookmarks),
     includeArchived: Boolean(currentSettings.includeArchived),
-    ignoreDateCutoff: Boolean(currentSettings.ignoreDateCutoff),
-    extractFrequent: Boolean(currentSettings.extractFrequent),
-    frequentDays: currentSettings.frequentDays || 90,
-    frequentMaxCount: currentSettings.frequentMaxCount || 12,
     archiveFolderName: currentSettings.archiveFolderName || locDefaults.archiveFolderName,
   });
 
@@ -68,18 +120,48 @@ async function scanBookmarks() {
   el('statActive').textContent = String(stats.activeCount);
   el('statDup').textContent = String(stats.duplicateCount);
   el('statEmpty').textContent = String(stats.emptyFolderCount);
-  const freqPart = stats.frequentCount > 0
-    ? t('scanNoteFreq', {
-        frequentFolder: currentSettings.frequentFolderName || locDefaults.frequentFolderName,
-        frequentCount: stats.frequentCount,
+  const freqFolderName = currentSettings.frequentFolderName || locDefaults.frequentFolderName;
+  const freqPart = currentSettings.extractFrequent
+    ? t('scanNoteFreqAi', {
+        frequentFolder: freqFolderName,
+        maxCount: currentSettings.frequentMaxCount || 12,
       }, currentLang)
     : '';
-  el('scanNote').textContent = t('scanNoteMain', {
+  const noteKey = behavior.onlyRecent
+    ? 'scanNoteMainKeep'
+    : behavior.shouldArchiveNonRecent
+      ? 'scanNoteMain'
+      : 'scanNoteAllToAi';
+  el('scanNote').textContent = t(noteKey, {
     freqPart,
     activeCount: stats.activeCount,
     historicalCount: stats.historicalCount,
     archiveFolder: currentSettings.archiveFolderName || locDefaults.archiveFolderName,
   }, currentLang);
+
+  updateApiActionUi();
+}
+
+function buildBookmarkListElement(items) {
+  const ul = document.createElement('ul');
+  ul.className = 'folder-items';
+  for (const item of items) {
+    const li = document.createElement('li');
+    if (item.rename && item.rename !== item.title) {
+      const oldSpan = document.createElement('span');
+      oldSpan.className = 'rename-old';
+      oldSpan.textContent = item.title || item.url;
+      const arrow = document.createTextNode(' → ');
+      const newSpan = document.createElement('span');
+      newSpan.className = 'rename-new';
+      newSpan.textContent = item.rename;
+      li.append(oldSpan, arrow, newSpan);
+    } else {
+      li.textContent = item.title || item.url;
+    }
+    ul.appendChild(li);
+  }
+  return ul;
 }
 
 function renderPreview(plan) {
@@ -95,69 +177,137 @@ function renderPreview(plan) {
     dupCount: plan.duplicateRemovals.length,
   }, currentLang);
 
+  const notes = [];
+  if (plan.unassignedCount > 0) {
+    notes.push(
+      t('previewUnassignedNote', {
+        count: plan.unassignedCount,
+        folder: plan.fallbackFolderName,
+      }, currentLang)
+    );
+  }
+  if (plan.archiveNonRecent && plan.historicalItems?.length > 0) {
+    notes.push(
+      t('previewHistoricalNote', {
+        count: plan.historicalItems.length,
+        archiveFolder: plan.archiveFolderName,
+      }, currentLang)
+    );
+  }
+  const notesEl = el('previewNotes');
+  if (notes.length > 0) {
+    notesEl.textContent = notes.join(' ');
+    notesEl.classList.remove('hidden');
+  } else {
+    notesEl.classList.add('hidden');
+  }
+
   const treeContainer = el('previewTree');
   treeContainer.replaceChildren();
 
-  for (const folder of plan.folders) {
-    const box = document.createElement('div');
-    box.className = 'folder-group';
+  plan.folders.forEach((folder, idx) => {
+    const details = document.createElement('details');
+    details.className = 'folder-group';
+    if (idx < 2) details.open = true;
 
-    const title = document.createElement('div');
-    title.className = 'folder-title';
-    title.textContent = `${folder.name} (${folder.items.length})`;
-    box.appendChild(title);
-
-    const ul = document.createElement('ul');
-    ul.className = 'folder-items';
-    for (const item of folder.items.slice(0, 8)) {
-      const li = document.createElement('li');
-      li.textContent = item.rename || item.title || item.url;
-      ul.appendChild(li);
-    }
-    if (folder.items.length > 8) {
-      const more = document.createElement('li');
-      more.textContent = t('previewMore', { count: folder.items.length - 8 }, currentLang);
-      ul.appendChild(more);
-    }
-    box.appendChild(ul);
-    treeContainer.appendChild(box);
-  }
+    const summary = document.createElement('summary');
+    summary.className = 'folder-title';
+    summary.textContent = `${folder.name} (${folder.items.length})`;
+    details.appendChild(summary);
+    details.appendChild(buildBookmarkListElement(folder.items));
+    treeContainer.appendChild(details);
+  });
 
   if (plan.tempItems.length > 0) {
     const locDefaults = getLocalizedDefaults(currentLang);
-    const box = document.createElement('div');
-    box.className = 'folder-group';
-    const title = document.createElement('div');
-    title.className = 'folder-title';
-    title.textContent = `${t('tempFolderPath', {
+    const details = document.createElement('details');
+    details.className = 'folder-group temp-group';
+    details.open = true;
+
+    const summary = document.createElement('summary');
+    summary.className = 'folder-title';
+    summary.textContent = `${t('tempFolderPath', {
       archiveFolder: plan.archiveFolderName,
       tempFolder: plan.tempFolderName || locDefaults.tempFolderName,
     }, currentLang)} (${plan.tempItems.length})`;
-    box.appendChild(title);
-    treeContainer.appendChild(box);
+    details.appendChild(summary);
+    details.appendChild(buildBookmarkListElement(plan.tempItems));
+    treeContainer.appendChild(details);
   }
+
+  if (plan.duplicateRemovals.length > 0) {
+    const details = document.createElement('details');
+    details.className = 'folder-group dup-group';
+
+    const summary = document.createElement('summary');
+    summary.className = 'folder-title';
+    summary.textContent = `${t('previewDupTitle', {}, currentLang)} (${plan.duplicateRemovals.length})`;
+    details.appendChild(summary);
+
+    const ul = document.createElement('ul');
+    ul.className = 'folder-items';
+    for (const dup of plan.duplicateRemovals) {
+      const li = document.createElement('li');
+      const titleText = document.createTextNode(dup.title || dup.url);
+      li.appendChild(titleText);
+      if (dup.path) {
+        const pathSpan = document.createElement('span');
+        pathSpan.className = 'dup-path';
+        pathSpan.textContent = ` (${dup.path})`;
+        li.appendChild(pathSpan);
+      }
+      ul.appendChild(li);
+    }
+    details.appendChild(ul);
+    treeContainer.appendChild(details);
+  }
+
+  updateToggleAllButtonState();
 }
 
-el('btnOpenOptions').addEventListener('click', () => {
-  chrome.runtime.openOptionsPage();
+el('previewTree').addEventListener('toggle', (event) => {
+  if (event.target instanceof HTMLDetailsElement) {
+    updateToggleAllButtonState();
+  }
+}, { capture: true });
+
+el('btnTogglePreviewAll').addEventListener('click', () => {
+  const btn = el('btnTogglePreviewAll');
+  const expand = btn.getAttribute('aria-expanded') !== 'true';
+  for (const details of el('previewTree').querySelectorAll(':scope > details')) {
+    details.open = expand;
+  }
+  updateToggleAllButtonState();
 });
 
-el('btnEditPrompt').addEventListener('click', () => {
-  chrome.runtime.openOptionsPage();
-});
+function openOptionsAt(hash = '') {
+  if (!hash) {
+    chrome.runtime.openOptionsPage();
+    return;
+  }
+  const url = chrome.runtime.getURL(`src/options/options.html${hash}`);
+  chrome.tabs?.create ? chrome.tabs.create({ url }) : window.open(url, '_blank');
+}
 
-async function handleScopeToggleChange() {
+el('btnOpenOptions').addEventListener('click', () => openOptionsAt());
+el('btnNoticeSettings').addEventListener('click', () => openOptionsAt());
+el('btnEditPrompt').addEventListener('click', () => openOptionsAt('#prompt-section'));
+
+async function handleScopeChange() {
+  clearPreview();
   await saveSettings({
+    scopeMode: el('quickScopeMode').value,
     includeArchived: el('quickIncludeArchived').checked,
-    ignoreDateCutoff: el('quickIgnoreDate').checked,
+    includeOtherBookmarks: el('quickIncludeOther').checked,
     extractFrequent: el('quickExtractFrequent').checked,
   });
   await scanBookmarks();
   const locDefaults = getLocalizedDefaults(currentLang);
-  const freqPart = currentAnalysis.stats.frequentCount > 0
-    ? t('scanNoteFreq', {
-        frequentFolder: currentSettings.frequentFolderName || locDefaults.frequentFolderName,
-        frequentCount: currentAnalysis.stats.frequentCount,
+  const freqFolderName = currentSettings.frequentFolderName || locDefaults.frequentFolderName;
+  const freqPart = currentSettings.extractFrequent
+    ? t('scanNoteFreqAi', {
+        frequentFolder: freqFolderName,
+        maxCount: currentSettings.frequentMaxCount || 12,
       }, currentLang)
     : '';
   setStatusKey('statusScopeUpdated', {
@@ -166,12 +316,14 @@ async function handleScopeToggleChange() {
   }, 'info');
 }
 
-el('quickIncludeArchived').addEventListener('change', handleScopeToggleChange);
-el('quickIgnoreDate').addEventListener('change', handleScopeToggleChange);
-el('quickExtractFrequent').addEventListener('change', handleScopeToggleChange);
+el('quickScopeMode').addEventListener('change', handleScopeChange);
+el('quickIncludeArchived').addEventListener('change', handleScopeChange);
+el('quickIncludeOther').addEventListener('change', handleScopeChange);
+el('quickExtractFrequent').addEventListener('change', handleScopeChange);
 
 el('btnScan').addEventListener('click', async () => {
   try {
+    clearPreview();
     setStatusKey('statusScanning', {}, 'loading');
     await scanBookmarks();
     setStatusKey('statusScanDone', {}, 'ok');
@@ -182,6 +334,31 @@ el('btnScan').addEventListener('click', async () => {
 
 el('btnAiPlan').addEventListener('click', async () => {
   if (!currentAnalysis) await scanBookmarks();
+
+  const behavior = resolveScopeBehavior(currentSettings);
+  const hasLocalCleanupWork = Boolean(
+    currentAnalysis.frequentItems.length > 0 ||
+    (currentSettings.deduplicateArchive !== false && currentAnalysis.duplicateRemovals.length > 0) ||
+    (currentSettings.removeEmptyFolders !== false && currentAnalysis.emptyFolders.length > 0) ||
+    (behavior.shouldArchiveNonRecent && currentAnalysis.historicalItems.length > 0)
+  );
+
+  // If no bookmarks need AI classification, build local cleanup/archive plan directly without an API key
+  if (currentAnalysis.activeItems.length === 0) {
+    if (!hasLocalCleanupWork) {
+      setStatusKey('statusNothingToOrganize', {}, 'info');
+      return;
+    }
+    const localPlan = buildPlanFromAiResponse(
+      currentAnalysis,
+      { folders: [], assignments: [] },
+      currentSettings
+    );
+    renderPreview(localPlan);
+    setStatusKey('statusLocalPreviewDone', {}, 'ok');
+    return;
+  }
+
   const preset = PROVIDER_PRESETS[currentSettings.provider];
   if (preset?.needsKey && !currentSettings.apiKey) {
     setStatusKey('statusMissingKey', {}, 'err');
@@ -189,23 +366,49 @@ el('btnAiPlan').addEventListener('click', async () => {
   }
 
   const btn = el('btnAiPlan');
+  const stopBtn = el('btnStopAiPlan');
+  activePlanAbortController = new AbortController();
+  const { signal } = activePlanAbortController;
+
+  isBusy = true;
   btn.disabled = true;
   btn.textContent = t('btnAiPlanning', {}, currentLang);
+  stopBtn.classList.remove('hidden');
+  stopBtn.disabled = false;
+  stopBtn.textContent = t('btnStopAiPlan', {}, currentLang);
   setStatusKey('statusAiRunning', {}, 'loading');
   try {
     const plan = await generateAiOrganizationPlan(
       currentAnalysis,
       currentSettings,
-      (msg) => setStatus(msg, 'loading')
+      (msg) => setStatus(msg, 'loading'),
+      { signal }
     );
     renderPreview(plan);
     setStatusKey('statusAiDone', {}, 'ok');
   } catch (err) {
-    setStatusKey('statusAiFail', { err: err.message }, 'err');
+    if (err?.name === 'AbortError' || signal.aborted) {
+      setStatusKey('statusAiStopped', {}, 'info');
+    } else {
+      setStatusKey('statusAiFail', { err: err.message }, 'err');
+    }
   } finally {
+    isBusy = false;
+    activePlanAbortController = null;
+    stopBtn.classList.add('hidden');
+    stopBtn.disabled = true;
     btn.disabled = false;
-    btn.textContent = t('btnAiPlan', {}, currentLang);
+    updateApiActionUi();
   }
+});
+
+el('btnStopAiPlan').addEventListener('click', () => {
+  if (!activePlanAbortController) return;
+  const stopBtn = el('btnStopAiPlan');
+  stopBtn.disabled = true;
+  stopBtn.textContent = t('btnStopping', {}, currentLang);
+  setStatusKey('statusAiStopping', {}, 'loading');
+  activePlanAbortController.abort();
 });
 
 function switchPlanMode(mode) {
@@ -228,14 +431,27 @@ el('tabManualMode').addEventListener('click', () => {
   setStatusKey('statusSwitchedManual', {}, 'info');
 });
 
+el('btnNoticeManual').addEventListener('click', () => {
+  switchPlanMode('manual');
+  setStatusKey('statusSwitchedManual', {}, 'info');
+});
+
 el('btnCopyPrompt').addEventListener('click', async () => {
-  if (!currentAnalysis) await scanBookmarks();
-  const promptText = buildManualPromptBundle(currentAnalysis, currentSettings);
-  await navigator.clipboard.writeText(promptText);
-  const btn = el('btnCopyPrompt');
-  btn.textContent = t('btnCopied', {}, currentLang);
-  setTimeout(() => { btn.textContent = t('btnCopyPrompt', {}, currentLang); }, 1500);
-  setStatusKey('statusCopied', { count: currentAnalysis.activeItems.length }, 'ok');
+  try {
+    if (!currentAnalysis) await scanBookmarks();
+    if (currentAnalysis.activeItems.length === 0) {
+      setStatusKey('statusCopyEmpty', {}, 'info');
+      return;
+    }
+    const promptText = buildManualPromptBundle(currentAnalysis, currentSettings);
+    await navigator.clipboard.writeText(promptText);
+    const btn = el('btnCopyPrompt');
+    btn.textContent = t('btnCopied', {}, currentLang);
+    setTimeout(() => { btn.textContent = t('btnCopyPrompt', {}, currentLang); }, 1500);
+    setStatusKey('statusCopied', { count: currentAnalysis.activeItems.length }, 'ok');
+  } catch (err) {
+    setStatusKey('statusCopyFail', { err: err.message }, 'err');
+  }
 });
 
 el('btnParseManual').addEventListener('click', async () => {
@@ -251,46 +467,78 @@ el('btnParseManual').addEventListener('click', async () => {
 });
 
 el('btnApply').addEventListener('click', async () => {
-  if (!currentPlan) return;
+  if (!currentPlan || isBusy) return;
+  const planToApply = currentPlan;
   const btn = el('btnApply');
+  isBusy = true;
   btn.disabled = true;
+  el('btnUndo').disabled = true;
   btn.textContent = t('btnApplying', {}, currentLang);
   try {
-    const result = await applyOrganizationPlan(currentPlan, (msg) => setStatus(msg, 'loading'));
+    const result = await applyOrganizationPlan(planToApply, (msg) => setStatus(msg, 'loading'));
+    // Invalidate applied plan so a second click can never overwrite the pre-apply snapshot
+    clearPreview();
     await scanBookmarks();
     await refreshHeaderAndSnapshot();
     setStatusKey('statusApplyDone', result, 'ok');
   } catch (err) {
+    btn.disabled = false;
     setStatusKey('statusApplyFail', { err: err.message }, 'err');
   } finally {
-    btn.disabled = false;
+    isBusy = false;
     btn.textContent = t('btnApply', {}, currentLang);
+    await refreshHeaderAndSnapshot();
   }
 });
 
 el('btnUndo').addEventListener('click', async () => {
+  if (isBusy) return;
   const btn = el('btnUndo');
+  isBusy = true;
   btn.disabled = true;
+  el('btnApply').disabled = true;
   btn.textContent = t('btnUndoing', {}, currentLang);
   try {
     setStatusKey('statusUndoing', {}, 'loading');
-    await restoreLastSnapshot();
+    await restoreLastSnapshot(currentSettings?.uiLanguage);
+    clearPreview();
     await scanBookmarks();
     setStatusKey('statusUndoDone', {}, 'ok');
   } catch (err) {
     setStatusKey('statusUndoFail', { err: err.message }, 'err');
   } finally {
+    isBusy = false;
     btn.textContent = t('btnUndo', {}, currentLang);
     await refreshHeaderAndSnapshot();
   }
 });
 
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  if (areaName === 'local' && (changes[STORAGE_KEYS.SETTINGS] || changes[STORAGE_KEYS.SNAPSHOT])) {
+  if (areaName !== 'local') return;
+  if (changes[STORAGE_KEYS.SETTINGS] || changes[STORAGE_KEYS.SNAPSHOT]) {
+    const prevSettings = changes[STORAGE_KEYS.SETTINGS]?.oldValue;
+    const nextSettings = changes[STORAGE_KEYS.SETTINGS]?.newValue;
     await refreshHeaderAndSnapshot();
     if (changes[STORAGE_KEYS.SETTINGS]) {
+      const scopeChanged =
+        prevSettings &&
+        nextSettings &&
+        (prevSettings.scopeMode !== nextSettings.scopeMode ||
+          prevSettings.recentDays !== nextSettings.recentDays ||
+          prevSettings.includeRootLoose !== nextSettings.includeRootLoose ||
+          prevSettings.includeOtherBookmarks !== nextSettings.includeOtherBookmarks ||
+          prevSettings.includeArchived !== nextSettings.includeArchived ||
+          prevSettings.extractFrequent !== nextSettings.extractFrequent ||
+          prevSettings.frequentDays !== nextSettings.frequentDays ||
+          prevSettings.frequentMaxCount !== nextSettings.frequentMaxCount ||
+          prevSettings.archiveFolderName !== nextSettings.archiveFolderName ||
+          prevSettings.deduplicateArchive !== nextSettings.deduplicateArchive);
       await scanBookmarks();
-      if (currentPlan) renderPreview(currentPlan);
+      if (scopeChanged) {
+        clearPreview();
+      } else if (currentPlan) {
+        renderPreview(currentPlan);
+      }
       if (lastStatusSpec) {
         setStatusKey(lastStatusSpec.key, lastStatusSpec.vars, lastStatusSpec.kind);
       }

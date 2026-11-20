@@ -3,6 +3,12 @@ export const STORAGE_KEYS = {
   SNAPSHOT: 'abo_last_snapshot_v1',
 };
 
+export const SCOPE_MODES = {
+  RECENT_ARCHIVE: 'recent_archive',
+  ALL_AI: 'all_ai',
+  RECENT_ONLY: 'recent_only',
+};
+
 export const PROVIDER_PRESETS = {
   builtin: {
     id: 'builtin',
@@ -48,6 +54,15 @@ export const PROVIDER_PRESETS = {
     needsUrl: true,
     baseUrl: 'https://api.siliconflow.cn/v1',
     model: 'Qwen/Qwen2.5-7B-Instruct',
+  },
+  openrouter: {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    labelEn: 'OpenRouter',
+    needsKey: true,
+    needsUrl: true,
+    baseUrl: 'https://openrouter.ai/api/v1',
+    model: 'openai/gpt-4o-mini',
   },
   anthropic: {
     id: 'anthropic',
@@ -210,10 +225,14 @@ export const DEFAULT_SETTINGS = {
   baseUrl: 'https://api.deepseek.com/v1',
   apiKey: '',
   model: 'deepseek-chat',
+  providerConfigs: {},
+  scopeMode: SCOPE_MODES.RECENT_ARCHIVE,
   recentDays: 365,
   includeRootLoose: true,
+  includeOtherBookmarks: false,
   includeArchived: false,
-  ignoreDateCutoff: false,
+  onlyRecent: false,
+  archiveNonRecent: true,
   extractFrequent: false,
   frequentFolderName: '常用',
   frequentDays: 90,

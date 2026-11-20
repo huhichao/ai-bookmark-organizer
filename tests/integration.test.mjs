@@ -5,7 +5,7 @@ import { buildPlanFromAiResponse } from '../src/core/planner.js';
 import { applyOrganizationPlan } from '../src/core/applier.js';
 import { getLastSnapshot, restoreLastSnapshot } from '../src/core/snapshot.js';
 
-function createChromeMock(initialBarChildren, initialOtherChildren = []) {
+function createChromeMock(initialBarChildren, initialOtherChildren = [], initialMobileChildren = []) {
   let nextId = 100;
   const storeData = {};
 
@@ -15,6 +15,7 @@ function createChromeMock(initialBarChildren, initialOtherChildren = []) {
     children: [
       { id: '1', parentId: '0', folderType: 'bookmarks-bar', title: '书签栏', children: [] },
       { id: '2', parentId: '0', folderType: 'other', title: '其他书签', children: [] },
+      { id: '3', parentId: '0', folderType: 'mobile', title: '移动设备书签', children: [] },
     ],
   };
 
@@ -55,8 +56,8 @@ function createChromeMock(initialBarChildren, initialOtherChildren = []) {
             parentId: parent.id,
             title: item.title,
             url: item.url,
-            dateAdded: item.dateAdded || Date.now(),
-            dateLastUsed: item.dateLastUsed || 0,
+            dateAdded: item.dateAdded ?? Date.now(),
+            dateLastUsed: item.dateLastUsed ?? 0,
           }
         : {
             id: item.id || String(++nextId),
@@ -71,6 +72,7 @@ function createChromeMock(initialBarChildren, initialOtherChildren = []) {
 
   seedChildren(root.children[0], initialBarChildren);
   seedChildren(root.children[1], initialOtherChildren);
+  seedChildren(root.children[2], initialMobileChildren);
 
   const chromeMock = {
     storage: {
@@ -155,7 +157,7 @@ test('applyOrganizationPlan + restoreLastSnapshot round-trip cleanly', async () 
   const old = new Date('2021-06-01T00:00:00Z').getTime();
 
   globalThis.chrome = createChromeMock([
-    { id: '10', title: '\u200c\ufeffClaude', url: 'https://claude.ai/new', dateAdded: recent },
+    { id: '10', title: '\u200c\ufeffClaude', url: 'https://claude.ai/new', dateAdded: recent, dateLastUsed: recent + 1000 },
     { id: '11', title: 'Spring Promo', url: 'https://promo.example.com/', dateAdded: recent },
     {
       id: '20',
@@ -201,6 +203,187 @@ test('applyOrganizationPlan + restoreLastSnapshot round-trip cleanly', async () 
   const barUndo = afterUndo[0].children[0].children;
   assert.equal(barUndo.length, 3);
   assert.equal(barUndo[0].title, '\u200c\ufeffClaude');
+  assert.equal(barUndo[0].dateAdded, recent);
+  assert.equal(barUndo[0].dateLastUsed, recent + 1000);
   assert.equal(barUndo[2].title, '旧技术');
   assert.equal(barUndo[2].children.length, 3);
+  assert.equal(barUndo[2].children[0].dateAdded, old);
+});
+
+test('applyOrganizationPlan archives >365d items left inside reused folders', async () => {
+  const now = new Date('2026-11-20T00:00:00Z').getTime();
+  const recent = now - 5 * 86400_000;
+  const old = new Date('2020-03-01T00:00:00Z').getTime();
+
+  globalThis.chrome = createChromeMock([
+    {
+      id: '30',
+      title: '开发与技术',
+      children: [
+        { id: '31', title: 'React 19', url: 'https://react.dev/', dateAdded: recent },
+        { id: '32', title: 'Legacy jQuery Note', url: 'https://jquery-2020.example.com/', dateAdded: old },
+      ],
+    },
+  ]);
+
+  const initialTree = await chrome.bookmarks.getTree();
+  const analysis = analyzeBookmarkTree(initialTree, { recentDays: 365, nowMs: now, ignoreDateCutoff: false });
+  assert.equal(analysis.activeItems.length, 1);
+  assert.equal(analysis.historicalItems.length, 1);
+
+  const plan = buildPlanFromAiResponse(analysis, {
+    folders: ['开发与技术'],
+    assignments: [{ id: '31', folder: '开发与技术' }],
+  });
+
+  const result = await applyOrganizationPlan(plan);
+  assert.equal(result.archivedHistorical, 1);
+
+  const after = await chrome.bookmarks.getTree();
+  const bar = after[0].children[0].children;
+  assert.equal(bar[0].title, '开发与技术');
+  assert.equal(bar[0].children.length, 1);
+  assert.equal(bar[0].children[0].title, 'React 19');
+  assert.equal(bar[1].title, '历史归档');
+  assert.equal(bar[1].children[0].title, '开发与技术');
+  assert.equal(bar[1].children[0].children[0].title, 'Legacy jQuery Note');
+});
+
+test('applyOrganizationPlan keeps old folders & items in place when archiveNonRecent is false', async () => {
+  const now = new Date('2026-11-20T00:00:00Z').getTime();
+  const recent = now - 5 * 86400_000;
+  const old = new Date('2020-03-01T00:00:00Z').getTime();
+
+  globalThis.chrome = createChromeMock([
+    {
+      id: '30',
+      title: '开发与技术',
+      children: [
+        { id: '31', title: 'React 19', url: 'https://react.dev/', dateAdded: recent },
+        { id: '32', title: 'Legacy jQuery Note', url: 'https://jquery-2020.example.com/', dateAdded: old },
+      ],
+    },
+    {
+      id: '40',
+      title: '2019老收藏',
+      children: [
+        { id: '41', title: 'Old Blog', url: 'https://blog-2019.example.com/', dateAdded: old },
+      ],
+    },
+  ]);
+
+  const initialTree = await chrome.bookmarks.getTree();
+  const analysis = analyzeBookmarkTree(initialTree, { recentDays: 365, nowMs: now, ignoreDateCutoff: false });
+  const plan = buildPlanFromAiResponse(
+    analysis,
+    { folders: ['开发与技术'], assignments: [{ id: '31', folder: '开发与技术' }] },
+    { onlyRecent: true, archiveNonRecent: true }
+  );
+
+  const result = await applyOrganizationPlan(plan);
+  assert.equal(result.archivedOldFolders, 0);
+  assert.equal(result.archivedHistorical, 0);
+
+  const after = await chrome.bookmarks.getTree();
+  const bar = after[0].children[0].children;
+  assert.equal(bar.length, 2); // 开发与技术 + 2019老收藏 (no 历史归档 created)
+  assert.equal(bar[0].title, '开发与技术');
+  assert.equal(bar[0].children.length, 2); // Legacy jQuery Note stayed in place
+  assert.equal(bar[1].title, '2019老收藏');
+});
+
+test('applyOrganizationPlan merges duplicate archive subfolders and skips counting emptied folders as archived', async () => {
+  const now = new Date('2026-11-20T00:00:00Z').getTime();
+  const recent = now - 2 * 86400_000;
+  const old = new Date('2020-01-01T00:00:00Z').getTime();
+
+  globalThis.chrome = createChromeMock(
+    [
+      {
+        id: '10',
+        title: '旧技术',
+        children: [{ id: '11', title: 'Old B', url: 'https://old-b.example.com/', dateAdded: old }],
+      },
+      {
+        id: '20',
+        title: '将被抽空的目录',
+        children: [{ id: '21', title: 'Recent Tool', url: 'https://recent.example.com/', dateAdded: recent }],
+      },
+      {
+        id: '30',
+        title: '历史归档',
+        children: [
+          {
+            id: '31',
+            title: '旧技术',
+            children: [{ id: '32', title: 'Old A', url: 'https://old-a.example.com/', dateAdded: old }],
+          },
+        ],
+      },
+    ],
+    [],
+    [{ id: '90', title: 'Phone Bookmark', url: 'https://phone.example.com/', dateAdded: recent }]
+  );
+
+  const initialTree = await chrome.bookmarks.getTree();
+  const analysis = analyzeBookmarkTree(initialTree, { recentDays: 365, nowMs: now });
+  const plan = buildPlanFromAiResponse(analysis, {
+    folders: ['效率工具'],
+    assignments: [{ id: '21', folder: '效率工具' }],
+  });
+
+  const result = await applyOrganizationPlan(plan);
+  // Only 旧技术 had historical content to archive (merged); 将被抽空的目录 was pruned as empty
+  assert.equal(result.archivedOldFolders, 1);
+  assert.equal(result.removedEmpty, 1);
+
+  const after = await chrome.bookmarks.getTree();
+  const bar = after[0].children[0].children;
+  const archive = bar.find((c) => c.title === '历史归档');
+  // No duplicate 旧技术 folders inside 历史归档 — merged into one containing both Old A and Old B
+  const mergedFolders = archive.children.filter((c) => c.title === '旧技术');
+  assert.equal(mergedFolders.length, 1);
+  assert.equal(mergedFolders[0].children.length, 2);
+
+  // Mobile bookmarks stayed untouched and were also snapshotted
+  assert.equal(after[0].children[2].children.length, 1);
+  const snap = await getLastSnapshot();
+  assert.equal(snap.rootContainers.length, 3);
+  assert.equal(snap.rootContainers[2].children[0].id, '90');
+
+  // Even if mobile bookmark is removed externally before undo, restoreLastSnapshot brings it back
+  await chrome.bookmarks.remove('90');
+  await restoreLastSnapshot();
+  const afterUndo = await chrome.bookmarks.getTree();
+  assert.equal(afterUndo[0].children[2].children.length, 1);
+  assert.equal(afterUndo[0].children[2].children[0].title, 'Phone Bookmark');
+});
+
+test('restoreLastSnapshot preserves dateAdded even when restoring a legacy snapshot without node IDs', async () => {
+  const oldAdded = new Date('2021-05-01T00:00:00Z').getTime();
+  globalThis.chrome = createChromeMock([
+    {
+      id: '50',
+      title: 'AI 工具',
+      children: [{ id: '51', title: 'Claude Renamed', url: 'https://claude.ai/', dateAdded: oldAdded }],
+    },
+  ]);
+
+  // Simulate legacy v0.2.0 snapshot with no id fields
+  await chrome.storage.local.set({
+    abo_last_snapshot_v1: {
+      createdAt: Date.now() - 1000,
+      totalUrls: 1,
+      barChildren: [{ title: 'Claude Original', url: 'https://claude.ai/' }],
+      otherChildren: [],
+    },
+  });
+
+  await restoreLastSnapshot();
+  const afterUndo = await chrome.bookmarks.getTree();
+  const bar = afterUndo[0].children[0].children;
+  assert.equal(bar.length, 1);
+  assert.equal(bar[0].id, '51'); // matched live node by URL instead of recreating
+  assert.equal(bar[0].title, 'Claude Original');
+  assert.equal(bar[0].dateAdded, oldAdded); // original creation timestamp preserved!
 });

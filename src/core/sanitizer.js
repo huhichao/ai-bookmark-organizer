@@ -30,11 +30,17 @@ export function sanitizeUrlForAi(rawUrl, stripQueryParams = true) {
  * Build compact, privacy-safe items for AI categorization.
  */
 export function buildAiPayloadItems(items, { stripQueryParams = true } = {}) {
-  return items.map((item) => ({
-    id: item.id,
-    title: cleanBookmarkTitle(item.title) || '(无标题)',
-    url: sanitizeUrlForAi(item.url, stripQueryParams),
-    addedAt: item.dateAdded ? new Date(item.dateAdded).toISOString().slice(0, 10) : '',
-    folderHint: item.parentPath || '',
-  }));
+  return items.map((item) => {
+    const payload = {
+      id: item.id,
+      title: cleanBookmarkTitle(item.title) || '(无标题)',
+      url: sanitizeUrlForAi(item.url, stripQueryParams),
+      addedAt: item.dateAdded ? new Date(item.dateAdded).toISOString().slice(0, 10) : '',
+      folderHint: item.parentPath || '',
+    };
+    if (item.dateLastUsed) {
+      payload.lastUsedAt = new Date(item.dateLastUsed).toISOString().slice(0, 10);
+    }
+    return payload;
+  });
 }

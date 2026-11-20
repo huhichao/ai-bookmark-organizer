@@ -36,7 +36,7 @@
       <div class="field" id="baseUrlField">
         <label for="baseUrl" data-i18n="optBaseUrl">API Base URL</label>
         <input id="baseUrl" type="url" placeholder="https://api.deepseek.com/v1" />
-        <small data-i18n="optBaseUrlHint">使用自定义中转域名时，保存或测试将按需请求该单个域名的网络访问权限。</small>
+        <small data-i18n="optBaseUrlHint">使用自定义中转域名时，保存或测试将按需请求该单个域名的网络访问权限。不同提供商的配置会分别保存。</small>
       </div>
       <div class="field" id="modelField">
         <label for="model" data-i18n="optModel">模型名称</label>
@@ -44,17 +44,30 @@
       </div>
       <div class="field" id="apiKeyField">
         <label for="apiKey" data-i18n="optApiKey">API Key</label>
-        <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+        <div class="input-with-btn">
+          <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+          <button id="btnToggleKey" class="btn-secondary btn-inline" type="button" data-i18n="optShowKey">显示</button>
+        </div>
       </div>
       <div class="actions">
-        <button id="btnSaveAi" class="btn-primary" type="button" data-i18n="optBtnSaveAi">保存配置（按需授权域名）</button>
-        <button id="btnTestAi" class="btn-secondary" type="button" data-i18n="optBtnTestAi">测试连接</button>
+        <button id="btnTestAi" class="btn-primary" type="button" data-i18n="optBtnTestAi">测试连接</button>
+        <button id="btnSaveAi" class="btn-secondary hidden" type="button" data-i18n="optBtnSaveAi">授权该域名并保存</button>
       </div>
       <p id="aiStatusMsg" class="status-inline" role="status" aria-live="polite"></p>
     </section>
 
     <section class="card">
       <h2 data-i18n="optRulesCard">整理规则与隐私</h2>
+      <div class="field">
+        <label for="scopeMode" data-i18n="optScopeMode">默认整理策略</label>
+        <select id="scopeMode">
+          <option value="recent_archive" data-i18n="scopeModeRecentArchive">近期 AI 分类 + 超期自动归档（推荐）</option>
+          <option value="all_ai" data-i18n="scopeModeAllAi">全部交由 AI 重新分类</option>
+          <option value="recent_only" data-i18n="scopeModeRecentOnly">仅整理近期，超期保持原位</option>
+        </select>
+        <small data-i18n="optScopeModeHint">「近期 AI 分类 + 超期归档」会将近 N 天书签交由 AI 归类，更早的旧书签自动收进「历史归档」。</small>
+      </div>
+
       <div class="grid-2">
         <div class="field">
           <label for="recentDays" data-i18n="optRecentDays">近期活跃天数窗口</label>
@@ -80,37 +93,41 @@
       </div>
       <div class="checks">
         <label><input id="includeRootLoose" type="checkbox" /> <span data-i18n="optIncludeRootLoose">始终整理书签栏根目录散落书签</span></label>
-        <label><input id="includeArchived" type="checkbox" /> <span data-i18n="optIncludeArchived">包含「历史归档」目录内的书签（关闭时跳过已归档目录）</span></label>
-        <label><input id="ignoreDateCutoff" type="checkbox" /> <span data-i18n="optIgnoreDate">忽略近期天数限制（全量书签交由 AI 重新分类）</span></label>
-        <label><input id="extractFrequent" type="checkbox" /> <span data-i18n="optExtractFrequent">自动提取近期点击访问的书签到「常用」文件夹</span></label>
+        <label><input id="includeOtherBookmarks" type="checkbox" /> <span data-i18n="optIncludeOther">同时整理「其他书签」（默认仅整理书签栏，不打乱其他书签与移动设备书签）</span></label>
+        <label><input id="includeArchived" type="checkbox" /> <span data-i18n="optIncludeArchived">包含「历史归档」目录内的书签（勾选后将归档内书签一并重新交由 AI 归类）</span></label>
+        <label><input id="extractFrequent" type="checkbox" /> <span data-i18n="optExtractFrequent">由 AI 提取「常用」置顶文件夹（综合标题、主站入口特征与历史位置自动挑选核心日常入口）</span></label>
+      </div>
+
+      <div id="frequentOptions" class="sub-panel grid-2 hidden">
+        <div class="field">
+          <label for="frequentFolderName" data-i18n="optFrequentName">「常用」文件夹名称</label>
+          <input id="frequentFolderName" type="text" />
+        </div>
+        <div class="field">
+          <label for="frequentMaxCount" data-i18n="optFrequentMax">「常用」最多条数</label>
+          <input id="frequentMaxCount" type="number" min="3" max="30" />
+        </div>
+      </div>
+
+      <div class="checks">
         <label><input id="deduplicateArchive" type="checkbox" /> <span data-i18n="optDeduplicate">自动清理完全重复的网址（保留最新）</span></label>
         <label><input id="removeEmptyFolders" type="checkbox" /> <span data-i18n="optRemoveEmpty">归档后自动移除空文件夹</span></label>
         <label><input id="stripQueryParams" type="checkbox" /> <span data-i18n="optStripQuery">发送给 AI 前自动剥离 URL 查询参数（保护隐私）</span></label>
       </div>
-      <div class="grid-2" id="frequentConfigRow">
+
+      <div id="prompt-section" class="prompt-section">
         <div class="field">
-          <label for="frequentDays" data-i18n="optFrequentDays">「常用」最近访问天数</label>
-          <input id="frequentDays" type="number" min="7" max="365" />
+          <label for="promptTemplate" data-i18n="optPromptTemplate">预设提示词模板（快速切换风格）</label>
+          <select id="promptTemplate"></select>
         </div>
         <div class="field">
-          <label for="frequentMaxCount" data-i18n="optFrequentMax">「常用」最多提取条数</label>
-          <input id="frequentMaxCount" type="number" min="3" max="30" />
+          <div class="field-head">
+            <label for="customPrompt" data-i18n="optCustomPrompt">自定义分类提示词（System Prompt）</label>
+            <button id="btnResetPrompt" class="btn-link" type="button" data-i18n="optBtnResetPrompt">恢复默认提示词</button>
+          </div>
+          <textarea id="customPrompt" rows="8" data-i18n-placeholder="optPromptPlaceholder" placeholder="填写你的书签分类规则与文件夹偏好..."></textarea>
+          <small data-i18n="optPromptHint">可按自己的习惯自由修改分类逻辑；JSON 输出格式校验由系统自动附带，无需手写 Schema。</small>
         </div>
-      </div>
-      <div class="field">
-        <label for="promptTemplate" data-i18n="optPromptTemplate">预设提示词模板（快速切换风格）</label>
-        <select id="promptTemplate"></select>
-      </div>
-      <div class="field">
-        <div class="field-head">
-          <label for="customPrompt" data-i18n="optCustomPrompt">自定义分类提示词（System Prompt）</label>
-          <button id="btnResetPrompt" class="btn-link" type="button" data-i18n="optBtnResetPrompt">恢复默认提示词</button>
-        </div>
-        <textarea id="customPrompt" rows="8" data-i18n-placeholder="optPromptPlaceholder" placeholder="填写你的书签分类规则与文件夹偏好..."></textarea>
-        <small data-i18n="optPromptHint">可按自己的习惯自由修改分类逻辑；JSON 输出格式校验由系统自动附带，无需手写 Schema。</small>
-      </div>
-      <div class="actions">
-        <button id="btnSaveRules" class="btn-primary" type="button" data-i18n="optBtnSaveRules">保存规则设置</button>
       </div>
       <p id="rulesStatusMsg" class="status-inline" role="status" aria-live="polite"></p>
     </section>
@@ -120,7 +137,7 @@
       <p id="snapshotInfo" class="muted" data-i18n="optSnapshotChecking">正在检查快照...</p>
       <div class="actions">
         <button id="btnExportSnapshot" class="btn-secondary" type="button" data-i18n="optBtnExportSnap">导出上次快照 JSON</button>
-        <button id="btnClearSnapshot" class="btn-danger" type="button" data-i18n="optBtnClearSnap">清除本地快照</button>
+        <button id="btnClearSnapshot" class="btn-danger" type="button" command="show-modal" commandfor="confirmClearDialog" data-i18n="optBtnClearSnap">清除本地快照</button>
       </div>
       <p id="snapshotStatusMsg" class="status-inline" role="status" aria-live="polite"></p>
     </section>
@@ -136,9 +153,17 @@
         <a href="https://github.com/huhichao/ai-bookmark-organizer/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer" data-i18n="optLinkPrivacy">隐私政策</a>
       </p>
     </section>
-
-    <p id="statusMsg" class="status"></p>
   </main>
+
+  <dialog id="confirmClearDialog" class="confirm-dialog" aria-labelledby="confirmClearTitle" closedby="any">
+    <h2 id="confirmClearTitle" data-i18n="optClearSnapConfirmTitle">确认清除本地快照？</h2>
+    <p class="muted" data-i18n="optClearSnapConfirmBody">清除后将无法通过「撤销上次整理」恢复到整理前的书签结构。建议先导出 JSON 备份。</p>
+    <form method="dialog" class="dialog-actions">
+      <button type="submit" value="cancel" class="btn-secondary" autofocus data-i18n="optBtnCancel">取消</button>
+      <button type="submit" value="confirm" class="btn-danger" data-i18n="optBtnConfirmClear">确认清除</button>
+    </form>
+  </dialog>
+
   <script type="module" src="options.js"></script>
 </body>
 </html>

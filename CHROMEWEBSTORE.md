@@ -17,11 +17,11 @@
 Organize messy browser bookmarks into clean recent categories and a structured historical archive — preview every change before applying, with one-click snapshot undo.
 
 Key Features
-1. Bookmark Audit Overview: Instantly count total bookmarks, duplicate URLs, empty folders, and items ready for AI categorization.
-2. Flexible AI Modes: Works with Chrome Built-in AI (offline, zero setup), your own API key (OpenAI, DeepSeek, Claude, Gemini, Ollama, or custom OpenAI-compatible endpoints), or a free No-Key Web AI mode (copy sanitized prompt, paste JSON back).
-3. Recent Categories + History Archive: Organizes active/recent bookmarks into clean topic folders while keeping older bookmarks safely inside an Archive folder. Optional toggle to extract recently visited bookmarks into a "Frequent" folder.
+1. Bookmark Audit Overview: Instantly count in-scope bookmarks, duplicate URLs, empty folders, and items ready for AI categorization.
+2. Flexible AI Modes: Works with Chrome Built-in AI (offline, zero setup), your own API key (OpenAI, DeepSeek, Claude, Gemini, OpenRouter, Alibaba DashScope, SiliconFlow, Ollama, or custom OpenAI-compatible endpoints with isolated per-provider settings), or a free No-Key Web AI mode (copy sanitized prompt, paste JSON back).
+3. Flexible Organizing Modes & Archive: Choose between Recent via AI + Archive Older (default), Organize All via AI, or Recent Only. Focuses safely on Bookmarks Bar by default (with optional toggles for Other Bookmarks, Archive re-organization, and pinning a "Frequent" folder).
 4. Custom Prompts & Templates: Includes 4 preset categorization templates and full prompt customization.
-5. Safe Preview & One-Click Undo: Preview the folder tree before applying; every apply saves a local snapshot so you can restore anytime.
+5. Transparent Preview & One-Click Undo: Expand every proposed folder, temporary link list, duplicate removal list, and title cleanup diff before applying; every apply saves a full local snapshot so you can restore anytime.
 
 Privacy & Security
 API keys and bookmark snapshots stay strictly in your browser. When using a cloud model, URL query parameters are stripped by default to protect sensitive tokens before sending titles and simplified URLs directly to your chosen provider.
@@ -116,6 +116,7 @@ English (with Chinese Simplified `zh_CN` localization)
 
 | Version | Date | Summary |
 |---------|------|---------|
+| 0.2.1 | 2026-11-20 | Unify 3-way organizing mode selector, default scope safely to Bookmarks Bar (optional Other Bookmarks), let AI decide the pinned "Frequent" folder, expand preview to show full folders/temp links/duplicates/rename diffs, isolate per-provider API keys, preserve all root bookmark containers & original timestamps (`dateAdded`/`dateLastUsed`) on apply and undo (including legacy snapshot URL fallback), add OpenRouter preset, and harden Anthropic/Gemini/Built-in AI compatibility. |
 | 0.2.0 | 2026-11-20 | Add full English (`en`) and Chinese Simplified (`zh_CN`) localization (`_locales`, in-app language switcher, localized default folders and prompt templates). |
 | 0.1.3 | 2026-11-20 | Add toggles to include archived folders / ignore date cutoff / extract recently visited bookmarks to「常用」, plus preset prompt templates and full editable classification prompt. |
 | 0.1.2 | 2026-11-20 | Move Side Panel status feedback to a sticky color-coded banner below the header, add button loading states, and auto-sync settings changes from Options. |
