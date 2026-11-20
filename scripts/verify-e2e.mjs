@@ -174,10 +174,19 @@ async function main() {
       (async () => {
         const providerCount = document.querySelectorAll('#provider option').length;
         if (providerCount < 5) throw new Error('Expected >= 5 providers, got ' + providerCount);
-        return { providerCount, title: document.title };
+        return { providerCount, title: document.title, lang: document.documentElement.lang };
       })()
     `);
     console.log('[e2e] Options page verified:', optErrors);
+
+    // Switch UI language explicitly to zh_CN for deterministic Chinese flow & verify live switch
+    await optCdp.eval(`
+      (async () => {
+        document.getElementById('uiLanguage').value = 'zh_CN';
+        document.getElementById('uiLanguage').dispatchEvent(new Event('change'));
+        await new Promise((r) => setTimeout(r, 150));
+      })()
+    `);
 
     // Verify Test Connection validation & real mock request on Options page
     const testEmptyKeyMsg = await optCdp.eval(`
@@ -205,6 +214,25 @@ async function main() {
     `);
     console.log('[e2e] Options Test Connection result:', testMockMsg);
     assert.ok(testMockMsg.includes('连接成功'), `Expected connection success, got: ${testMockMsg}`);
+
+    // Verify switching to English updates DOM labels, then restore zh_CN
+    const enSwitchOk = await optCdp.eval(`
+      (async () => {
+        document.getElementById('uiLanguage').value = 'en';
+        document.getElementById('uiLanguage').dispatchEvent(new Event('change'));
+        await new Promise((r) => setTimeout(r, 150));
+        const enBtn = document.getElementById('btnTestAi').textContent;
+        const enArchive = document.getElementById('archiveFolderName').value;
+        document.getElementById('uiLanguage').value = 'zh_CN';
+        document.getElementById('uiLanguage').dispatchEvent(new Event('change'));
+        await new Promise((r) => setTimeout(r, 150));
+        return { enBtn, enArchive, zhBtn: document.getElementById('btnTestAi').textContent };
+      })()
+    `);
+    console.log('[e2e] Language switch verified:', enSwitchOk);
+    assert.equal(enSwitchOk.enBtn, 'Test Connection');
+    assert.equal(enSwitchOk.enArchive, 'Archive');
+    assert.equal(enSwitchOk.zhBtn, '测试连接');
 
     // Verify custom prompt field, template selector, and reset button work
     const promptOk = await optCdp.eval(`

@@ -5,12 +5,31 @@
 ## Store Listing
 
 **Extension Name** [REQUIRED]
-AI 书签整理助手
+- English (`en`): AI Bookmark Organizer
+- Chinese Simplified (`zh_CN`): AI 书签整理助手
 
 **Short Description** [REQUIRED]
-使用 Chrome 内置 AI 或自定义大模型 API 分批整理书签：近期书签智能分类、历史书签自动归档、重复项清理，先预览后生效，支持一键撤销。
+- English (`en`): Organize bookmarks with Chrome Built-in AI or your own LLM API: smart categorization, history archiving, dedup & snapshot undo.
+- Chinese Simplified (`zh_CN`): 使用 Chrome 内置 AI 或自定义大模型 API 分批整理书签：近期书签智能分类、历史书签自动归档、重复项清理，先预览后生效，支持一键撤销。
 
 **Detailed Description** [REQUIRED]
+(English — Default Locale)
+Organize messy browser bookmarks into clean recent categories and a structured historical archive — preview every change before applying, with one-click snapshot undo.
+
+Key Features
+1. Bookmark Audit Overview: Instantly count total bookmarks, duplicate URLs, empty folders, and items ready for AI categorization.
+2. Flexible AI Modes: Works with Chrome Built-in AI (offline, zero setup), your own API key (OpenAI, DeepSeek, Claude, Gemini, Ollama, or custom OpenAI-compatible endpoints), or a free No-Key Web AI mode (copy sanitized prompt, paste JSON back).
+3. Recent Categories + History Archive: Organizes active/recent bookmarks into clean topic folders while keeping older bookmarks safely inside an Archive folder. Optional toggle to extract recently visited bookmarks into a "Frequent" folder.
+4. Custom Prompts & Templates: Includes 4 preset categorization templates and full prompt customization.
+5. Safe Preview & One-Click Undo: Preview the folder tree before applying; every apply saves a local snapshot so you can restore anytime.
+
+Privacy & Security
+API keys and bookmark snapshots stay strictly in your browser. When using a cloud model, URL query parameters are stripped by default to protect sensitive tokens before sending titles and simplified URLs directly to your chosen provider.
+
+Open Source & Feedback (MIT License):
+https://github.com/huhichao/ai-bookmark-organizer
+
+(简体中文 — `zh_CN`)
 帮助你将杂乱的浏览器书签按“近期常用 + 历史归档”高效整理清楚，全程先预览确认、再安全执行，并支持随时一键还原。
 
 核心功能
@@ -40,7 +59,7 @@ Productivity
 Analyzes and organizes browser bookmarks into categorized recent folders and historical archives with deduplication and snapshot undo.
 
 **Primary Language** [REQUIRED]
-Chinese (Simplified)
+English (with Chinese Simplified `zh_CN` localization)
 
 ## Graphics & Assets
 
@@ -95,6 +114,7 @@ Chinese (Simplified)
 
 | Version | Date | Summary |
 |---------|------|---------|
+| 0.2.0 | 2026-11-20 | Add full English (`en`) and Chinese Simplified (`zh_CN`) localization (`_locales`, in-app language switcher, localized default folders and prompt templates). |
 | 0.1.3 | 2026-11-20 | Add toggles to include archived folders / ignore date cutoff / extract recently visited bookmarks to「常用」, plus preset prompt templates and full editable classification prompt. |
 | 0.1.2 | 2026-11-20 | Move Side Panel status feedback to a sticky color-coded banner below the header, add button loading states, and auto-sync settings changes from Options. |
 | 0.1.1 | 2026-11-20 | Show inline AI connection/validation status directly in Options AI card, add 20s fetch timeout, and skip redundant permission prompts for pre-granted manifest hosts. |

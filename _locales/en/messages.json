@@ -1,0 +1,11 @@
+{
+  "extName": {
+    "message": "AI Bookmark Organizer"
+  },
+  "extDesc": {
+    "message": "Organize bookmarks with Chrome Built-in AI or your own LLM API: smart categorization, history archiving, dedup & snapshot undo."
+  },
+  "actionTitle": {
+    "message": "Open AI Bookmark Organizer"
+  }
+}

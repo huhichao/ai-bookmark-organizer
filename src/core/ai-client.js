@@ -1,4 +1,5 @@
-import { DEFAULT_CLASSIFICATION_PROMPT } from './constants.js';
+import { DEFAULT_CLASSIFICATION_PROMPT, getDefaultPrompt } from './constants.js';
+import { resolveLanguage } from './i18n.js';
 
 export const JSON_SCHEMA_CONTRACT = `输出格式要求（不可更改）：
 - 严格只输出合法 JSON，不要输出任何解释文字或 Markdown 以外的多余文本。
@@ -14,16 +15,40 @@ export const JSON_SCHEMA_CONTRACT = `输出格式要求（不可更改）：
   ]
 }`;
 
+export const JSON_SCHEMA_CONTRACT_EN = `Output format requirements (must follow strictly):
+- Output valid JSON only, with no extra explanation outside the JSON object.
+- Every input id must appear in "assignments" unchanged.
+- Assign temporary/expired/one-off links to folder "__TEMP__"; optionally include "rename" to clean a title.
+
+Output JSON Schema:
+{
+  "folders": ["Folder 1", "Folder 2"],
+  "assignments": [
+    { "id": "1520", "folder": "Folder 1" },
+    { "id": "1547", "folder": "__TEMP__" }
+  ]
+}`;
+
 export const CLASSIFICATION_SYSTEM_PROMPT = `${DEFAULT_CLASSIFICATION_PROMPT}\n\n${JSON_SCHEMA_CONTRACT}`;
 
 export function getEffectiveSystemPrompt(settings = {}) {
+  const lang = resolveLanguage(settings.uiLanguage);
+  const contract = lang === 'en' ? JSON_SCHEMA_CONTRACT_EN : JSON_SCHEMA_CONTRACT;
   const customRules = typeof settings.customPrompt === 'string' && settings.customPrompt.trim()
     ? settings.customPrompt.trim()
-    : DEFAULT_CLASSIFICATION_PROMPT;
-  return `${customRules}\n\n${JSON_SCHEMA_CONTRACT}`;
+    : getDefaultPrompt(lang);
+  return `${customRules}\n\n${contract}`;
 }
 
-export function buildClassificationUserPrompt(payloadItems, customHint = '') {
+export function buildClassificationUserPrompt(payloadItems, customHint = '', lang = 'zh_CN') {
+  if (lang === 'en') {
+    const hintBlock = customHint?.trim()
+      ? `\nAdditional preference:\n${customHint.trim()}\n`
+      : '';
+    return `Please categorize the following ${payloadItems.length} bookmarks:${hintBlock}
+Bookmarks (JSON):
+${JSON.stringify(payloadItems)}`;
+  }
   const hintBlock = customHint?.trim()
     ? `\n用户补充偏好：\n${customHint.trim()}\n`
     : '';

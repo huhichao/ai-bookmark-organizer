@@ -10,7 +10,7 @@ const stageDir = path.join(distDir, 'stage');
 fs.rmSync(stageDir, { recursive: true, force: true });
 fs.mkdirSync(stageDir, { recursive: true });
 
-const INCLUDE = ['manifest.json', 'icons', 'src'];
+const INCLUDE = ['manifest.json', 'icons', 'src', '_locales'];
 for (const item of INCLUDE) {
   fs.cpSync(path.resolve(item), path.join(stageDir, item), { recursive: true });
 }

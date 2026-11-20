@@ -3,89 +3,89 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI 书签整理助手</title>
+  <title>AI Bookmark Organizer</title>
   <link rel="stylesheet" href="sidepanel.css" />
 </head>
-<body>
+<body data-i18n-title="appName">
   <div class="sticky-top">
     <header class="topbar">
       <div>
-        <h1>AI 书签整理助手</h1>
-        <p class="subtitle" id="modelBadge">加载配置中...</p>
+        <h1 data-i18n="appName">AI 书签整理助手</h1>
+        <p class="subtitle" id="modelBadge">...</p>
       </div>
-      <button id="btnOpenOptions" class="btn-ghost" type="button">设置</button>
+      <button id="btnOpenOptions" class="btn-ghost" type="button" data-i18n="btnSettings">设置</button>
     </header>
     <div class="status-wrap">
-      <p class="status-banner info" id="statusText" role="status" aria-live="polite">就绪。应用前会自动保存本地快照，随时可一键撤销。</p>
+      <p class="status-banner info" id="statusText" role="status" aria-live="polite"></p>
     </div>
   </div>
 
   <main class="container">
     <section class="card">
       <div class="card-head">
-        <h2>1. 书签扫描概览</h2>
-        <button id="btnScan" class="btn-secondary" type="button">重新扫描</button>
+        <h2 data-i18n="secScanTitle">1. 书签扫描概览</h2>
+        <button id="btnScan" class="btn-secondary" type="button" data-i18n="btnRescan">重新扫描</button>
       </div>
       <div class="stats-grid">
         <div class="stat">
           <span class="stat-val" id="statTotal">-</span>
-          <span class="stat-label">总书签</span>
+          <span class="stat-label" data-i18n="statTotal">总书签</span>
         </div>
         <div class="stat">
           <span class="stat-val accent" id="statActive">-</span>
-          <span class="stat-label">待AI归类</span>
+          <span class="stat-label" data-i18n="statActive">待AI归类</span>
         </div>
         <div class="stat">
           <span class="stat-val" id="statDup">-</span>
-          <span class="stat-label">重复网址</span>
+          <span class="stat-label" data-i18n="statDup">重复网址</span>
         </div>
         <div class="stat">
           <span class="stat-val" id="statEmpty">-</span>
-          <span class="stat-label">空文件夹</span>
+          <span class="stat-label" data-i18n="statEmpty">空文件夹</span>
         </div>
       </div>
-      <p class="hint" id="scanNote">正在读取书签树...</p>
+      <p class="hint" id="scanNote">...</p>
       <div class="scope-toggles">
-        <label><input id="quickIncludeArchived" type="checkbox" /> 包含「历史归档」内书签</label>
-        <label><input id="quickIgnoreDate" type="checkbox" /> 忽略天数全量分类</label>
-        <label><input id="quickExtractFrequent" type="checkbox" /> 提取近期访问到「常用」</label>
+        <label><input id="quickIncludeArchived" type="checkbox" /> <span data-i18n="scopeIncludeArchived">包含「历史归档」内书签</span></label>
+        <label><input id="quickIgnoreDate" type="checkbox" /> <span data-i18n="scopeIgnoreDate">忽略天数全量分类</span></label>
+        <label><input id="quickExtractFrequent" type="checkbox" /> <span data-i18n="scopeExtractFrequent">提取近期访问到「常用」</span></label>
       </div>
     </section>
 
     <section class="card">
       <div class="card-head">
-        <h2>2. 生成整理预览</h2>
-        <button id="btnEditPrompt" class="btn-ghost" type="button">自定义提示词</button>
+        <h2 data-i18n="secPlanTitle">2. 生成整理预览</h2>
+        <button id="btnEditPrompt" class="btn-ghost" type="button" data-i18n="btnCustomPrompt">自定义提示词</button>
       </div>
 
-      <div class="mode-tabs" role="tablist" aria-label="AI 整理模式">
-        <button id="tabApiMode" class="mode-tab active" type="button" role="tab" aria-selected="true">API 自动分类</button>
-        <button id="tabManualMode" class="mode-tab" type="button" role="tab" aria-selected="false">免 Key 网页 AI 模式</button>
+      <div class="mode-tabs" role="tablist" aria-label="AI Mode">
+        <button id="tabApiMode" class="mode-tab active" type="button" role="tab" aria-selected="true" data-i18n="tabApiMode">API 自动分类</button>
+        <button id="tabManualMode" class="mode-tab" type="button" role="tab" aria-selected="false" data-i18n="tabManualMode">免 Key 网页 AI 模式</button>
       </div>
 
       <div id="apiModePane" class="mode-pane">
-        <p class="hint">直接调用你在「设置」中配置的大模型 API（或 Chrome 内置 AI）自动生成分类方案。</p>
+        <p class="hint" data-i18n="apiModeHint">直接调用你在「设置」中配置的大模型 API（或 Chrome 内置 AI）自动生成分类方案。</p>
         <div class="actions-row">
-          <button id="btnAiPlan" class="btn-primary" type="button">AI 智能分类预览</button>
+          <button id="btnAiPlan" class="btn-primary" type="button" data-i18n="btnAiPlan">AI 智能分类预览</button>
         </div>
       </div>
 
       <div id="manualBox" class="mode-pane manual-box hidden">
-        <p class="hint">无需配置 API Key，借用网页版 DeepSeek / ChatGPT / Claude 等免费完成分类：</p>
+        <p class="hint" data-i18n="manualIntro">无需配置 API Key，借用网页版 DeepSeek / ChatGPT / Claude 等免费完成分类：</p>
         <ol class="step-list">
           <li>
-            <span>点击复制脱敏书签清单与提示词（已自动剥离 URL 参数保护隐私）</span>
-            <button id="btnCopyPrompt" class="btn-secondary step-btn" type="button">1. 复制提示词与清单</button>
+            <span data-i18n="manualStep1">点击复制脱敏书签清单与提示词（已自动剥离 URL 参数保护隐私）</span>
+            <button id="btnCopyPrompt" class="btn-secondary step-btn" type="button" data-i18n="btnCopyPrompt">1. 复制提示词与清单</button>
           </li>
-          <li>打开任意网页版 AI 对话框粘贴发送，复制它返回的 JSON 结果</li>
-          <li>将 JSON 粘贴到下方并生成预览：</li>
+          <li data-i18n="manualStep2">打开任意网页版 AI 对话框粘贴发送，复制它返回的 JSON 结果</li>
+          <li data-i18n="manualStep3">将 JSON 粘贴到下方并生成预览：</li>
         </ol>
-        <textarea id="manualJsonInput" rows="4" placeholder='粘贴 AI 返回的 JSON，例如 {"folders":[...],"assignments":[...]}'></textarea>
-        <button id="btnParseManual" class="btn-primary" type="button">3. 解析 JSON 生成预览</button>
+        <textarea id="manualJsonInput" rows="4" data-i18n-placeholder="manualJsonPlaceholder" placeholder='粘贴 AI 返回的 JSON，例如 {"folders":[...],"assignments":[...]}'></textarea>
+        <button id="btnParseManual" class="btn-primary" type="button" data-i18n="btnParseManual">3. 解析 JSON 生成预览</button>
       </div>
 
       <div id="previewBox" class="preview-box hidden">
-        <h3>整理方案预览</h3>
+        <h3 data-i18n="previewTitle">整理方案预览</h3>
         <div id="previewSummary" class="preview-summary"></div>
         <div id="previewTree" class="preview-tree"></div>
       </div>
@@ -93,11 +93,11 @@
 
     <section class="card">
       <div class="card-head">
-        <h2>3. 执行与撤销</h2>
+        <h2 data-i18n="secApplyTitle">3. 执行与撤销</h2>
       </div>
       <div class="actions-row">
-        <button id="btnApply" class="btn-primary" type="button" disabled>应用整理方案</button>
-        <button id="btnUndo" class="btn-danger" type="button" disabled>撤销上次整理</button>
+        <button id="btnApply" class="btn-primary" type="button" disabled data-i18n="btnApply">应用整理方案</button>
+        <button id="btnUndo" class="btn-danger" type="button" disabled data-i18n="btnUndo">撤销上次整理</button>
       </div>
     </section>
   </main>

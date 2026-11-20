@@ -1,0 +1,11 @@
+{
+  "extName": {
+    "message": "AI 书签整理助手"
+  },
+  "extDesc": {
+    "message": "使用 Chrome 内置 AI 或自定义大模型 API 分批整理书签：近期书签智能分类、历史书签自动归档、重复项清理，先预览后生效，支持一键撤销。"
+  },
+  "actionTitle": {
+    "message": "打开 AI 书签整理助手"
+  }
+}

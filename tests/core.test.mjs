@@ -5,7 +5,8 @@ import { analyzeBookmarkTree } from '../src/core/analyzer.js';
 import { extractJsonObject, getEffectiveSystemPrompt, JSON_SCHEMA_CONTRACT } from '../src/core/ai-client.js';
 import { buildPlanFromAiResponse, FALLBACK_FOLDER_NAME } from '../src/core/planner.js';
 import { isUrlCoveredByPatterns, toOriginMatchPattern } from '../src/core/permissions.js';
-import { DEFAULT_CLASSIFICATION_PROMPT, PROMPT_TEMPLATES } from '../src/core/constants.js';
+import { DEFAULT_CLASSIFICATION_PROMPT, DEFAULT_CLASSIFICATION_PROMPT_EN, PROMPT_TEMPLATES } from '../src/core/constants.js';
+import { getLocalizedDefaults, resolveLanguage, t } from '../src/core/i18n.js';
 
 test('toOriginMatchPattern and isUrlCoveredByPatterns strip ports and match hosts', () => {
   assert.equal(toOriginMatchPattern('http://127.0.0.1:11434/v1'), 'http://127.0.0.1/*');
@@ -216,4 +217,17 @@ test('analyzeBookmarkTree extracts recently used bookmarks into frequentItems wh
   assert.equal(plan.folders[0].name, '常用');
   assert.equal(plan.folders[0].items.length, 2);
   assert.equal(plan.folders[1].name, '工具');
+});
+
+test('i18n resolves languages, defaults, and English system prompts', () => {
+  assert.equal(resolveLanguage('en'), 'en');
+  assert.equal(resolveLanguage('zh_CN'), 'zh_CN');
+  assert.equal(getLocalizedDefaults('en').archiveFolderName, 'Archive');
+  assert.equal(getLocalizedDefaults('zh_CN').archiveFolderName, '历史归档');
+  assert.equal(t('statTotal', {}, 'en'), 'Total');
+  assert.equal(t('statTotal', {}, 'zh_CN'), '总书签');
+
+  const enPrompt = getEffectiveSystemPrompt({ uiLanguage: 'en' });
+  assert.ok(enPrompt.includes(DEFAULT_CLASSIFICATION_PROMPT_EN));
+  assert.ok(enPrompt.includes('Output JSON Schema'));
 });

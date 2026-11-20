@@ -1,4 +1,5 @@
 import { findBookmarksBar, findOtherBookmarks } from './analyzer.js';
+import { getLocalizedDefaults, resolveLanguage, t } from './i18n.js';
 import { createAndSaveSnapshot } from './snapshot.js';
 
 async function pruneEmptyFolders(folderId, keepRootId) {
@@ -24,12 +25,16 @@ async function pruneEmptyFolders(folderId, keepRootId) {
 }
 
 export async function applyOrganizationPlan(plan, onProgress = () => {}) {
-  onProgress('正在保存整理前快照（支持随时撤销）...');
+  const lang = resolveLanguage(plan.uiLanguage);
+  const locDefaults = getLocalizedDefaults(lang);
+  const tempFolderName = plan.tempFolderName || locDefaults.tempFolderName;
+
+  onProgress(t('progSnapshot', {}, lang));
   await createAndSaveSnapshot();
 
   let removedDuplicates = 0;
   if (plan.duplicateRemovals?.length) {
-    onProgress(`正在清理 ${plan.duplicateRemovals.length} 条重复书签...`);
+    onProgress(t('progDedup', { count: plan.duplicateRemovals.length }, lang));
     for (const dup of plan.duplicateRemovals) {
       try {
         await chrome.bookmarks.remove(dup.removeId);
@@ -47,7 +52,7 @@ export async function applyOrganizationPlan(plan, onProgress = () => {}) {
   const barId = bar.id;
 
   const originalBarChildren = [...(bar.children || [])];
-  const archiveName = plan.archiveFolderName || '历史归档';
+  const archiveName = plan.archiveFolderName || locDefaults.archiveFolderName;
 
   // Reuse existing archive folder if present, otherwise create it
   let archiveFolder = null;
@@ -70,15 +75,15 @@ export async function applyOrganizationPlan(plan, onProgress = () => {}) {
   if (plan.tempItems?.length) {
     const [archTree] = await chrome.bookmarks.getSubTree(archiveFolder.id);
     const existingTemp = (archTree.children || []).find(
-      (c) => !c.url && c.title === '临时与一次性链接'
+      (c) => !c.url && c.title === tempFolderName
     );
     tempFolder = existingTemp || (await chrome.bookmarks.create({
       parentId: archiveFolder.id,
-      title: '临时与一次性链接',
+      title: tempFolderName,
     }));
   }
 
-  onProgress('正在创建主题分类文件夹...');
+  onProgress(t('progCreateFolders', {}, lang));
   const createdFolderIds = new Set([archiveFolder.id]);
   const targetFolderIdByName = new Map();
 
@@ -103,7 +108,7 @@ export async function applyOrganizationPlan(plan, onProgress = () => {}) {
     targetFolderIdByName.set(folderSpec.name, folderId);
   }
 
-  onProgress('正在移动并归类近期书签...');
+  onProgress(t('progMoveActive', {}, lang));
   let movedActive = 0;
   for (const folderSpec of plan.folders) {
     const targetId = targetFolderIdByName.get(folderSpec.name);
@@ -135,7 +140,7 @@ export async function applyOrganizationPlan(plan, onProgress = () => {}) {
     }
   }
 
-  onProgress('正在归档历史文件夹与旧书签...');
+  onProgress(t('progArchiveOld', {}, lang));
   let archivedOldFolders = 0;
   for (const ch of originalBarChildren) {
     if (createdFolderIds.has(ch.id)) continue;
@@ -146,7 +151,7 @@ export async function applyOrganizationPlan(plan, onProgress = () => {}) {
         if (!tempFolder) {
           tempFolder = await chrome.bookmarks.create({
             parentId: archiveFolder.id,
-            title: '临时与一次性链接',
+            title: tempFolderName,
           });
         }
         await chrome.bookmarks.move(cur.id, { parentId: tempFolder.id });
@@ -170,7 +175,7 @@ export async function applyOrganizationPlan(plan, onProgress = () => {}) {
 
   let removedEmpty = 0;
   if (plan.removeEmptyFolders) {
-    onProgress('正在清理空文件夹...');
+    onProgress(t('progPruneEmpty', {}, lang));
     removedEmpty = await pruneEmptyFolders(archiveFolder.id, archiveFolder.id);
   }
 

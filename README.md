@@ -1,46 +1,63 @@
-# AI 书签整理助手 (AI Bookmark Organizer)
+# AI Bookmark Organizer
 
-基于 Google Chrome 官方 **Build with AI / Modern Web Guidance (`chrome-extensions` skill)** 构建的 Manifest V3 书签整理扩展。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-## 核心设计
+A Manifest V3 Chrome extension built with Google Chrome's **Build with AI / Modern Web Guidance (`chrome-extensions` skill)** workflow. Organize messy bookmarks into clean topic folders and a structured historical archive — with privacy-first sanitization, live preview, and one-click snapshot undo.
 
-- **原生同步安全**：直接调用 `chrome.bookmarks` API 操作书签树，兼容 Chrome Sync，不会与云端同步产生冲突覆盖。
-- **近期分类 + 历史归档**：将近期活跃书签与书签栏散落书签交由 AI 按主题归类，历史旧书签与临时链接统一归入「历史归档」。
-- **本地先算账 + 脱敏**：本地完成精确 URL 去重与空文件夹清理；发送给 AI 前自动剥离敏感 Query 参数及不可见零宽字符。
-- **三种 AI 模式**：
-  1. **Chrome 内置 AI (`LanguageModel` Prompt API)**：零配置、完全离线运行。
-  2. **自定义 AI API（BYOK）**：支持 OpenAI 兼容接口（OpenAI / DeepSeek / 阿里云百炼 / 硅基流动 / OpenRouter / 本地 Ollama）、Claude、Gemini；自定义中转域名通过 `optional_host_permissions` 按需动态授权。
-  3. **免 Key 提示词模式**：一键复制脱敏清单与提示词给网页版 AI，粘回 JSON 即可预览并应用。
-- **快照备份与一键撤销**：每次应用整理前自动保存本地书签树快照，支持一键回滚或导出 JSON 备份。
+## Key Features
 
-## 目录结构
+- **Chrome Sync Safe**: Uses the native `chrome.bookmarks` API directly in the browser, keeping Chrome Sync intact without local/cloud merge conflicts.
+- **Recent Categories + History Archive**: Categorizes active/recent bookmarks (plus loose items on the Bookmarks Bar) into clean topic folders, while archiving older bookmarks and isolating one-off/expired links (`__TEMP__`).
+- **Flexible Scope Controls**: Quick toggles in the Side Panel to include bookmarks already inside the `Archive` folder, ignore the date cutoff for a full re-organization, or automatically extract recently visited bookmarks (`dateLastUsed`) into a pinned `Frequent` folder.
+- **3 AI Modes**:
+  1. **Chrome Built-in AI (`LanguageModel` Prompt API)**: Offline, zero setup, zero API cost.
+  2. **BYOK Cloud / Local API**: Supports OpenAI, DeepSeek, Alibaba DashScope, SiliconFlow, Anthropic Claude, Google Gemini, local Ollama, and custom OpenAI-compatible endpoints (via runtime `optional_host_permissions`).
+  3. **No-Key Web AI Mode**: Follow guided steps `1 → 2 → 3` to copy a sanitized prompt & list for any web AI chat, paste the JSON back, and preview before applying.
+- **Custom Prompts & Presets**: Ships with 4 preset prompt templates (Balanced, Minimal Pinned, Developer Stack, Everyday General) and full custom System Prompt editing with one-click reset.
+- **Bilingual (`en` / `zh_CN`)**: Supports Chrome `_locales` plus an in-app language switcher (`Auto` / `English` / `简体中文`) that also updates default folder names and prompt templates.
+- **Privacy & Snapshot Undo**: Strips URL query parameters and invisible zero-width characters before sending to AI; saves a local snapshot before every apply so you can undo or export JSON anytime.
 
-- `manifest.json` — Manifest V3 清单（遵循最小权限原则）
-- `src/background/service-worker.js` — 扩展后台（点击图标打开 Side Panel，无全局可变状态）
-- `src/core/` — 纯 JS 核心引擎（分析、脱敏、AI 客户端、规划校验、快照、应用执行）
-- `src/sidepanel/` — 侧边栏主界面（概览 → AI 预览 → 应用/撤销）
-- `src/options/` — 设置页（AI 提供商配置、动态域名授权、连接测试、快照管理）
-- `CHROMEWEBSTORE.md` — Chrome Web Store 上架元数据、权限说明与合规清单
-- `PRIVACY.md` — 隐私政策文档
-- `.agents/skills/` — 官方 `modern-web-guidance` 与 `chrome-extensions` 技能
+## Screenshots
 
-## 本地开发与测试
+| Side Panel (Scan, Scope, Preview, Apply/Undo) | Settings (Language, AI Provider, Rules, Prompts) |
+| :---: | :---: |
+| ![Side Panel](assets/store-screenshot-1.png) | ![Settings](assets/store-screenshot-2.png) |
 
+## Installation
+
+### Option 1: Install from GitHub Releases
+1. Download the latest `.zip` from [Releases](https://github.com/huhichao/ai-bookmark-organizer/releases) and extract it.
+2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
+3. Click **Load unpacked** and select the extracted folder.
+
+### Option 2: Run from Source
 ```bash
-# 运行核心逻辑单元测试
+git clone https://github.com/huhichao/ai-bookmark-organizer.git
+cd ai-bookmark-organizer
+
+# Run unit & integration tests
 npm test
 
-# 重新生成图标 (16/48/128 PNG)
-npm run icons
+# Run real Chromium E2E verification (requires Playwright Chromium)
+npm run test:e2e
 
-# 检查 Web 平台现代规范兼容性
+# Scan against Chrome Modern Web Guidance rules
 npm run scan:mwg
 
-# 打包为可提交 Chrome Web Store 的 ZIP
+# Build Chrome Web Store ZIP package
 npm run package
 ```
 
-### 在 Chrome 中加载测试
-1. 打开 `chrome://extensions` 并启用右上角 **开发者模式**
-2. 点击 **加载已解压的扩展程序**，选择本项目根目录
-3. 点击浏览器工具栏扩展图标即可打开侧边栏体验
+## Project Structure
+
+- `manifest.json` — Manifest V3 manifest with minimal permissions (`bookmarks`, `storage`, `sidePanel`)
+- `_locales/` — Chrome native localization bundles (`en`, `zh_CN`)
+- `src/background/service-worker.js` — Opens Side Panel on action click without mutable globals
+- `src/core/` — Core engine (`analyzer`, `sanitizer`, `ai-client`, `planner`, `applier`, `snapshot`, `i18n`, `permissions`)
+- `src/sidepanel/` — Side Panel UI (`Overview → Preview → Apply / Undo`)
+- `src/options/` — Settings UI (`Language`, `AI Provider`, `Rules & Prompts`, `Snapshots`)
+- `CHROMEWEBSTORE.md` & `PRIVACY.md` — Store listing metadata, permission justifications, and privacy policy
+
+## License
+
+[MIT](LICENSE)

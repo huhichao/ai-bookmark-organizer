@@ -1,14 +1,23 @@
 import { testAiConnection } from '../core/ai-client.js';
 import {
-  DEFAULT_CLASSIFICATION_PROMPT,
-  PROMPT_TEMPLATES,
+  PROMPT_TEMPLATES_BY_LANG,
   PROVIDER_PRESETS,
+  getDefaultPrompt,
+  getPromptTemplates,
 } from '../core/constants.js';
+import {
+  applyI18nToDocument,
+  getLocalizedDefaults,
+  resolveLanguage,
+  t,
+} from '../core/i18n.js';
 import { isUrlCoveredByPatterns, toOriginMatchPattern } from '../core/permissions.js';
 import { clearSnapshot, getLastSnapshot } from '../core/snapshot.js';
 import { loadSettings, saveSettings } from '../core/storage.js';
 
 const el = (id) => document.getElementById(id);
+let currentLang = 'en';
+
 let grantedOriginPatterns = (() => {
   try {
     return chrome.runtime.getManifest()?.host_permissions || [];
@@ -38,10 +47,6 @@ function setInlineStatus(targetId, msg, kind = 'info') {
   }
 }
 
-function setStatus(msg, kind = 'info') {
-  setInlineStatus('aiStatusMsg', msg, kind);
-}
-
 function getOriginPattern(rawUrl) {
   return toOriginMatchPattern(rawUrl);
 }
@@ -55,6 +60,7 @@ function updateProviderFieldVisibility(providerId) {
 
 function populateProviderOptions() {
   const select = el('provider');
+  const prev = select.value;
   select.replaceChildren();
   for (const preset of Object.values(PROVIDER_PRESETS)) {
     const opt = document.createElement('option');
@@ -62,37 +68,56 @@ function populateProviderOptions() {
     opt.textContent = preset.label;
     select.appendChild(opt);
   }
+  if (prev) select.value = prev;
 }
 
-async function refreshSnapshotInfo() {
-  const snap = await getLastSnapshot();
-  if (!snap) {
-    el('snapshotInfo').textContent = '暂无本地快照。首次执行书签整理时会自动生成。';
-    el('btnExportSnapshot').disabled = true;
-    el('btnClearSnapshot').disabled = true;
-    return;
-  }
-  const dt = new Date(snap.createdAt).toLocaleString();
-  el('snapshotInfo').textContent = `最近快照时间：${dt}（含 ${snap.totalUrls} 条书签）`;
-  el('btnExportSnapshot').disabled = false;
-  el('btnClearSnapshot').disabled = false;
-}
-
-function populatePromptTemplates() {
+function populatePromptTemplates(lang) {
   const select = el('promptTemplate');
+  const prev = select.value;
   select.replaceChildren();
-  for (const tpl of Object.values(PROMPT_TEMPLATES)) {
+  const templates = getPromptTemplates(lang);
+  for (const tpl of Object.values(templates)) {
     const opt = document.createElement('option');
     opt.value = tpl.id;
     opt.textContent = tpl.label;
     select.appendChild(opt);
   }
+  if (prev && templates[prev]) select.value = prev;
+}
+
+async function refreshSnapshotInfo() {
+  const snap = await getLastSnapshot();
+  if (!snap) {
+    el('snapshotInfo').textContent = t('optSnapshotNone', {}, currentLang);
+    el('btnExportSnapshot').disabled = true;
+    el('btnClearSnapshot').disabled = true;
+    return;
+  }
+  const dt = new Date(snap.createdAt).toLocaleString();
+  el('snapshotInfo').textContent = t('optSnapshotInfo', { dt, count: snap.totalUrls }, currentLang);
+  el('btnExportSnapshot').disabled = false;
+  el('btnClearSnapshot').disabled = false;
+}
+
+function isKnownDefaultPrompt(promptText) {
+  const trimmed = String(promptText || '').trim();
+  if (!trimmed) return true;
+  for (const group of Object.values(PROMPT_TEMPLATES_BY_LANG)) {
+    for (const tpl of Object.values(group)) {
+      if (tpl.prompt.trim() === trimmed) return tpl.id;
+    }
+  }
+  return false;
 }
 
 async function init() {
   populateProviderOptions();
-  populatePromptTemplates();
   const s = await loadSettings();
+  currentLang = resolveLanguage(s.uiLanguage);
+  applyI18nToDocument(currentLang);
+  populatePromptTemplates(currentLang);
+
+  el('uiLanguage').value = s.uiLanguage || 'auto';
   el('provider').value = s.provider;
   el('baseUrl').value = s.baseUrl;
   el('model').value = s.model;
@@ -111,16 +136,58 @@ async function init() {
   el('deduplicateArchive').checked = Boolean(s.deduplicateArchive);
   el('removeEmptyFolders').checked = Boolean(s.removeEmptyFolders);
   el('stripQueryParams').checked = Boolean(s.stripQueryParams);
+
   const effectivePrompt = (s.customPrompt && s.customPrompt.trim())
     ? s.customPrompt
-    : DEFAULT_CLASSIFICATION_PROMPT;
+    : getDefaultPrompt(currentLang);
   el('customPrompt').value = effectivePrompt;
-  const matchedTpl = Object.values(PROMPT_TEMPLATES).find((t) => t.prompt.trim() === effectivePrompt.trim());
-  if (matchedTpl) el('promptTemplate').value = matchedTpl.id;
+  const matchedTplId = isKnownDefaultPrompt(effectivePrompt);
+  if (typeof matchedTplId === 'string') {
+    el('promptTemplate').value = matchedTplId;
+  }
+
   updateProviderFieldVisibility(s.provider);
   await refreshGrantedOrigins();
   await refreshSnapshotInfo();
 }
+
+el('uiLanguage').addEventListener('change', async (e) => {
+  const newUiLang = e.target.value;
+  const prevLang = currentLang;
+  const nextLang = resolveLanguage(newUiLang);
+  currentLang = nextLang;
+
+  const prevDefaults = getLocalizedDefaults(prevLang);
+  const nextDefaults = getLocalizedDefaults(nextLang);
+
+  const currentArchiveName = el('archiveFolderName').value.trim();
+  const nextArchiveName = (!currentArchiveName || currentArchiveName === prevDefaults.archiveFolderName)
+    ? nextDefaults.archiveFolderName
+    : currentArchiveName;
+
+  const currentPromptVal = el('customPrompt').value;
+  const matchedTplId = isKnownDefaultPrompt(currentPromptVal);
+  const nextPrompt = typeof matchedTplId === 'string'
+    ? (getPromptTemplates(nextLang)[matchedTplId]?.prompt || getDefaultPrompt(nextLang))
+    : currentPromptVal;
+
+  applyI18nToDocument(nextLang);
+  populatePromptTemplates(nextLang);
+  el('archiveFolderName').value = nextArchiveName;
+  el('customPrompt').value = nextPrompt;
+  if (typeof matchedTplId === 'string') {
+    el('promptTemplate').value = matchedTplId;
+  }
+
+  await saveSettings({
+    uiLanguage: newUiLang,
+    archiveFolderName: nextArchiveName,
+    frequentFolderName: nextDefaults.frequentFolderName,
+    customPrompt: nextPrompt,
+  });
+  await refreshSnapshotInfo();
+  setInlineStatus('langStatusMsg', t('optLangSaved', {}, nextLang), 'ok');
+});
 
 el('provider').addEventListener('change', (e) => {
   const id = e.target.value;
@@ -144,14 +211,14 @@ function readAiForm() {
 function validateAiForm(form) {
   const preset = PROVIDER_PRESETS[form.provider];
   if (preset?.needsUrl) {
-    if (!form.baseUrl) return '请先填写 API Base URL（需以 http:// 或 https:// 开头）。';
-    if (!getOriginPattern(form.baseUrl)) return 'API Base URL 格式无效，请以 http:// 或 https:// 开头。';
+    if (!form.baseUrl) return t('optErrEmptyUrl', {}, currentLang);
+    if (!getOriginPattern(form.baseUrl)) return t('optErrInvalidUrl', {}, currentLang);
   }
   if (form.provider !== 'builtin' && !form.model) {
-    return '请先填写模型名称。';
+    return t('optErrEmptyModel', {}, currentLang);
   }
   if (preset?.needsKey && !form.apiKey) {
-    return '请先填写 API Key。';
+    return t('optErrEmptyKey', {}, currentLang);
   }
   return null;
 }
@@ -182,13 +249,13 @@ el('btnSaveAi').addEventListener('click', async () => {
   try {
     const granted = await requestOriginPermissionIfNeeded(form);
     if (!granted) {
-      setInlineStatus('aiStatusMsg', '未授予目标 API 域名网络权限，请检查 Base URL 格式并允许权限请求。', 'err');
+      setInlineStatus('aiStatusMsg', t('optErrPermDenied', {}, currentLang), 'err');
       return;
     }
     await saveSettings(form);
-    setInlineStatus('aiStatusMsg', 'AI 接口配置已保存。', 'ok');
+    setInlineStatus('aiStatusMsg', t('optSavedAi', {}, currentLang), 'ok');
   } catch (err) {
-    setInlineStatus('aiStatusMsg', `保存失败: ${err.message}`, 'err');
+    setInlineStatus('aiStatusMsg', t('optSaveFail', { err: err.message }, currentLang), 'err');
   } finally {
     btn.disabled = false;
   }
@@ -202,24 +269,23 @@ el('btnTestAi').addEventListener('click', async () => {
     return;
   }
   const btn = el('btnTestAi');
-  const origLabel = btn.textContent;
   btn.disabled = true;
-  btn.textContent = '测试中...';
-  setInlineStatus('aiStatusMsg', '正在请求接口权限并测试连接...', 'info');
+  btn.textContent = t('optTestingAi', {}, currentLang);
+  setInlineStatus('aiStatusMsg', t('optTestReqPerm', {}, currentLang), 'info');
   try {
     const granted = await requestOriginPermissionIfNeeded(form);
     if (!granted) {
-      setInlineStatus('aiStatusMsg', '未授予目标 API 域名网络权限，无法测试。', 'err');
+      setInlineStatus('aiStatusMsg', t('optErrTestPermDenied', {}, currentLang), 'err');
       return;
     }
-    setInlineStatus('aiStatusMsg', '正在发送测试请求，请稍候...', 'info');
+    setInlineStatus('aiStatusMsg', t('optTestSending', {}, currentLang), 'info');
     const reply = await testAiConnection(form);
-    setInlineStatus('aiStatusMsg', `连接成功！模型响应：${reply}`, 'ok');
+    setInlineStatus('aiStatusMsg', t('optTestOk', { reply }, currentLang), 'ok');
   } catch (err) {
-    setInlineStatus('aiStatusMsg', `连接测试失败: ${err.message}`, 'err');
+    setInlineStatus('aiStatusMsg', t('optTestFail', { err: err.message }, currentLang), 'err');
   } finally {
     btn.disabled = false;
-    btn.textContent = origLabel;
+    btn.textContent = t('optBtnTestAi', {}, currentLang);
   }
 });
 
@@ -228,24 +294,25 @@ el('extractFrequent').addEventListener('change', (e) => {
 });
 
 el('promptTemplate').addEventListener('change', (e) => {
-  const tpl = PROMPT_TEMPLATES[e.target.value];
+  const tpl = getPromptTemplates(currentLang)[e.target.value];
   if (tpl) {
     el('customPrompt').value = tpl.prompt;
-    setInlineStatus('rulesStatusMsg', `已加载模板「${tpl.label}」，可微调后点击「保存规则设置」。`, 'info');
+    setInlineStatus('rulesStatusMsg', t('optTplLoaded', { label: tpl.label }, currentLang), 'info');
   }
 });
 
 el('btnResetPrompt').addEventListener('click', () => {
   el('promptTemplate').value = 'balanced';
-  el('customPrompt').value = DEFAULT_CLASSIFICATION_PROMPT;
-  setInlineStatus('rulesStatusMsg', '已恢复默认分类提示词（记得点击「保存规则设置」生效）。', 'info');
+  el('customPrompt').value = getDefaultPrompt(currentLang);
+  setInlineStatus('rulesStatusMsg', t('optPromptReset', {}, currentLang), 'info');
 });
 
 el('btnSaveRules').addEventListener('click', async () => {
+  const locDefaults = getLocalizedDefaults(currentLang);
   await saveSettings({
     recentDays: Math.max(7, Number(el('recentDays').value) || 365),
     batchSize: Math.max(10, Number(el('batchSize').value) || 60),
-    archiveFolderName: el('archiveFolderName').value.trim() || '历史归档',
+    archiveFolderName: el('archiveFolderName').value.trim() || locDefaults.archiveFolderName,
     archiveLocation: el('archiveLocation').value,
     includeRootLoose: el('includeRootLoose').checked,
     includeArchived: el('includeArchived').checked,
@@ -256,9 +323,9 @@ el('btnSaveRules').addEventListener('click', async () => {
     deduplicateArchive: el('deduplicateArchive').checked,
     removeEmptyFolders: el('removeEmptyFolders').checked,
     stripQueryParams: el('stripQueryParams').checked,
-    customPrompt: el('customPrompt').value.trim() || DEFAULT_CLASSIFICATION_PROMPT,
+    customPrompt: el('customPrompt').value.trim() || getDefaultPrompt(currentLang),
   });
-  setInlineStatus('rulesStatusMsg', '整理规则与提示词已保存。', 'ok');
+  setInlineStatus('rulesStatusMsg', t('optRulesSaved', {}, currentLang), 'ok');
 });
 
 el('btnExportSnapshot').addEventListener('click', async () => {
@@ -276,7 +343,7 @@ el('btnExportSnapshot').addEventListener('click', async () => {
 el('btnClearSnapshot').addEventListener('click', async () => {
   await clearSnapshot();
   await refreshSnapshotInfo();
-  setInlineStatus('snapshotStatusMsg', '已清除本地快照。', 'ok');
+  setInlineStatus('snapshotStatusMsg', t('optSnapCleared', {}, currentLang), 'ok');
 });
 
 init();
