@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 书签整理助手 — 设置</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <h1>AI 书签整理助手 · 设置</h1>
+      <p>配置 AI 模型接口、整理规则及本地快照备份。所有 API Key 仅存储在本地浏览器。</p>
+    </header>
+
+    <section class="card">
+      <h2>AI 模型配置</h2>
+      <div class="field">
+        <label for="provider">AI 提供商</label>
+        <select id="provider"></select>
+      </div>
+      <div class="field" id="baseUrlField">
+        <label for="baseUrl">API Base URL</label>
+        <input id="baseUrl" type="url" placeholder="https://api.deepseek.com/v1" />
+        <small>使用自定义中转域名时，保存或测试将按需请求该单个域名的网络访问权限。</small>
+      </div>
+      <div class="field" id="modelField">
+        <label for="model">模型名称</label>
+        <input id="model" type="text" placeholder="deepseek-chat" />
+      </div>
+      <div class="field" id="apiKeyField">
+        <label for="apiKey">API Key</label>
+        <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+      </div>
+      <div class="actions">
+        <button id="btnSaveAi" class="btn-primary" type="button">保存配置（按需授权域名）</button>
+        <button id="btnTestAi" class="btn-secondary" type="button">测试连接</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>整理规则与隐私</h2>
+      <div class="grid-2">
+        <div class="field">
+          <label for="recentDays">近期活跃天数窗口</label>
+          <input id="recentDays" type="number" min="7" max="3650" />
+        </div>
+        <div class="field">
+          <label for="batchSize">AI 单批处理条数</label>
+          <input id="batchSize" type="number" min="10" max="150" />
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label for="archiveFolderName">历史归档文件夹名称</label>
+          <input id="archiveFolderName" type="text" />
+        </div>
+        <div class="field">
+          <label for="archiveLocation">历史归档存放位置</label>
+          <select id="archiveLocation">
+            <option value="bar_end">书签栏末尾</option>
+            <option value="other">「其他书签」根目录下</option>
+          </select>
+        </div>
+      </div>
+      <div class="checks">
+        <label><input id="includeRootLoose" type="checkbox" /> 始终整理书签栏根目录散落书签</label>
+        <label><input id="deduplicateArchive" type="checkbox" /> 自动清理完全重复的网址（保留最新）</label>
+        <label><input id="removeEmptyFolders" type="checkbox" /> 归档后自动移除空文件夹</label>
+        <label><input id="stripQueryParams" type="checkbox" /> 发送给 AI 前自动剥离 URL 查询参数（保护隐私）</label>
+      </div>
+      <div class="field">
+        <label for="customPromptHint">补充分类偏好（可选）</label>
+        <textarea id="customPromptHint" rows="3" placeholder="例如：把公司内网系统统一放进「工作与项目」，技术文章放「开发与技术」"></textarea>
+      </div>
+      <div class="actions">
+        <button id="btnSaveRules" class="btn-primary" type="button">保存规则设置</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>本地快照与数据管理</h2>
+      <p id="snapshotInfo" class="muted">正在检查快照...</p>
+      <div class="actions">
+        <button id="btnExportSnapshot" class="btn-secondary" type="button">导出上次快照 JSON</button>
+        <button id="btnClearSnapshot" class="btn-danger" type="button">清除本地快照</button>
+      </div>
+    </section>
+
+    <p id="statusMsg" class="status"></p>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

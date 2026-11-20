@@ -1,0 +1,95 @@
+export const STORAGE_KEYS = {
+  SETTINGS: 'abo_settings_v1',
+  SNAPSHOT: 'abo_last_snapshot_v1',
+};
+
+export const PROVIDER_PRESETS = {
+  builtin: {
+    id: 'builtin',
+    label: 'Chrome 内置 AI (LanguageModel / Gemini Nano)',
+    needsKey: false,
+    needsUrl: false,
+    baseUrl: '',
+    model: 'gemini-nano',
+  },
+  openai: {
+    id: 'openai',
+    label: 'OpenAI',
+    needsKey: true,
+    needsUrl: true,
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+  },
+  deepseek: {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    needsKey: true,
+    needsUrl: true,
+    baseUrl: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+  },
+  dashscope: {
+    id: 'dashscope',
+    label: '阿里云百炼 (DashScope 兼容接口)',
+    needsKey: true,
+    needsUrl: true,
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: 'qwen-plus',
+  },
+  siliconflow: {
+    id: 'siliconflow',
+    label: '硅基流动 (SiliconFlow)',
+    needsKey: true,
+    needsUrl: true,
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    model: 'Qwen/Qwen2.5-7B-Instruct',
+  },
+  anthropic: {
+    id: 'anthropic',
+    label: 'Anthropic Claude',
+    needsKey: true,
+    needsUrl: true,
+    baseUrl: 'https://api.anthropic.com/v1',
+    model: 'claude-3-5-haiku-latest',
+  },
+  gemini: {
+    id: 'gemini',
+    label: 'Google Gemini API',
+    needsKey: true,
+    needsUrl: true,
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    model: 'gemini-2.5-flash',
+  },
+  ollama: {
+    id: 'ollama',
+    label: '本地 Ollama (OpenAI 兼容)',
+    needsKey: false,
+    needsUrl: true,
+    baseUrl: 'http://localhost:11434/v1',
+    model: 'qwen2.5:7b',
+  },
+  custom: {
+    id: 'custom',
+    label: '自定义 OpenAI 兼容接口',
+    needsKey: true,
+    needsUrl: true,
+    baseUrl: '',
+    model: '',
+  },
+};
+
+export const DEFAULT_SETTINGS = {
+  provider: 'deepseek',
+  baseUrl: 'https://api.deepseek.com/v1',
+  apiKey: '',
+  model: 'deepseek-chat',
+  recentDays: 365,
+  includeRootLoose: true,
+  deduplicateArchive: true,
+  removeEmptyFolders: true,
+  archiveLocation: 'bar_end', // 'bar_end' | 'other'
+  archiveFolderName: '历史归档',
+  stripQueryParams: true,
+  batchSize: 60,
+  customPromptHint: '',
+};

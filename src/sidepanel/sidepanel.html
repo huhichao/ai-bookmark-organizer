@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 书签整理助手</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>AI 书签整理助手</h1>
+      <p class="subtitle" id="modelBadge">加载配置中...</p>
+    </div>
+    <button id="btnOpenOptions" class="btn-ghost" type="button">设置</button>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <div class="card-head">
+        <h2>1. 书签扫描概览</h2>
+        <button id="btnScan" class="btn-secondary" type="button">重新扫描</button>
+      </div>
+      <div class="stats-grid">
+        <div class="stat">
+          <span class="stat-val" id="statTotal">-</span>
+          <span class="stat-label">总书签</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val accent" id="statActive">-</span>
+          <span class="stat-label">待AI归类</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val" id="statDup">-</span>
+          <span class="stat-label">重复网址</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val" id="statEmpty">-</span>
+          <span class="stat-label">空文件夹</span>
+        </div>
+      </div>
+      <p class="hint" id="scanNote">正在读取书签树...</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>2. 生成整理预览</h2>
+      </div>
+      <div class="actions-row">
+        <button id="btnAiPlan" class="btn-primary" type="button">AI 智能分类预览</button>
+        <button id="btnToggleManual" class="btn-secondary" type="button">免 Key 提示词模式</button>
+      </div>
+
+      <div id="manualBox" class="manual-box hidden">
+        <p class="hint">复制提示词发给任意网页版 AI，再将 AI 返回的 JSON 粘贴到下方解析预览：</p>
+        <div class="actions-row">
+          <button id="btnCopyPrompt" class="btn-secondary" type="button">复制脱敏清单与提示词</button>
+        </div>
+        <textarea id="manualJsonInput" rows="5" placeholder='粘贴 AI 返回的 JSON，例如 {"folders":[...],"assignments":[...]}'></textarea>
+        <button id="btnParseManual" class="btn-secondary" type="button">解析 JSON 生成预览</button>
+      </div>
+
+      <div id="previewBox" class="preview-box hidden">
+        <h3>整理方案预览</h3>
+        <div id="previewSummary" class="preview-summary"></div>
+        <div id="previewTree" class="preview-tree"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>3. 执行与撤销</h2>
+      </div>
+      <div class="actions-row">
+        <button id="btnApply" class="btn-primary" type="button" disabled>应用整理方案</button>
+        <button id="btnUndo" class="btn-danger" type="button" disabled>撤销上次整理</button>
+      </div>
+      <p class="status-bar" id="statusText">就绪。应用前会自动保存本地快照，随时可一键撤销。</p>
+    </section>
+  </main>
+
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>
