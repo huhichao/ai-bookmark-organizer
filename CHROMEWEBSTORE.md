@@ -66,8 +66,10 @@ English (with Chinese Simplified `zh_CN` localization)
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | `icons/icon-128.png` |
-| Screenshot 1 [REQUIRED] | 1280×800 or 640×400 | ✅ Ready | `assets/store-screenshot-1.png` |
-| Screenshot 2 [RECOMMENDED] | 1280×800 or 640×400 | ✅ Ready | `assets/store-screenshot-2.png` |
+| Screenshot 1 (English) [REQUIRED] | 1280×800 | ✅ Ready | `assets/store-screenshot-1-en.png` |
+| Screenshot 2 (English) [RECOMMENDED] | 1280×800 | ✅ Ready | `assets/store-screenshot-2-en.png` |
+| Screenshot 1 (Chinese `zh_CN`) | 1280×800 | ✅ Ready | `assets/store-screenshot-1.png` |
+| Screenshot 2 (Chinese `zh_CN`) | 1280×800 | ✅ Ready | `assets/store-screenshot-2.png` |
 | Small Promo Tile [RECOMMENDED] | 440×280 | ⬜ Not created | |
 
 ### Screenshot Notes
@@ -95,12 +97,12 @@ English (with Chinese Simplified `zh_CN` localization)
 | Personally identifiable info | No | No | — | No |
 | Health info | No | No | — | No |
 | Financial info | No | No | — | No |
-| Authentication info | Yes (User API Key stored locally) | Only as Authorization header to user-chosen AI endpoint | Authenticate user-configured AI model requests | No (only user's chosen AI provider) |
+| Authentication info | Yes (User-entered API Key stored locally) | Only as Authorization header to user-chosen AI endpoint | Authenticate user-configured AI model requests | No (only user's chosen AI provider) |
 | Personal communications | No | No | — | No |
 | Location | No | No | — | No |
-| Web history | No | No | — | No |
+| Web history | Yes (Bookmark titles, sanitized URLs & `dateLastUsed` timestamps only) | Only when user runs cloud AI classification | Categorize bookmarks into folders | Only user's chosen AI provider |
 | User activity | No | No | — | No |
-| Website content | Bookmark titles & sanitized URLs only | Only when user runs cloud AI classification | Categorize bookmarks into folders | Only user's chosen AI provider |
+| Website content | No (No webpage DOM scraping) | No | — | No |
 
 ### Data Use Certification
 - [x] Data is NOT sold to third parties

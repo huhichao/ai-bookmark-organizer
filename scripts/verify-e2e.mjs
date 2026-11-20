@@ -215,24 +215,39 @@ async function main() {
     console.log('[e2e] Options Test Connection result:', testMockMsg);
     assert.ok(testMockMsg.includes('连接成功'), `Expected connection success, got: ${testMockMsg}`);
 
-    // Verify switching to English updates DOM labels, then restore zh_CN
+    // Verify switching to English updates DOM labels & capture clean English Options screenshot, then restore zh_CN
     const enSwitchOk = await optCdp.eval(`
       (async () => {
+        document.getElementById('provider').value = 'deepseek';
+        document.getElementById('provider').dispatchEvent(new Event('change'));
+        document.getElementById('aiStatusMsg').textContent = '';
         document.getElementById('uiLanguage').value = 'en';
         document.getElementById('uiLanguage').dispatchEvent(new Event('change'));
         await new Promise((r) => setTimeout(r, 150));
-        const enBtn = document.getElementById('btnTestAi').textContent;
-        const enArchive = document.getElementById('archiveFolderName').value;
+        document.getElementById('langStatusMsg').textContent = '';
+        return {
+          enBtn: document.getElementById('btnTestAi').textContent,
+          enArchive: document.getElementById('archiveFolderName').value,
+        };
+      })()
+    `);
+    const optShotEn = await optCdp.send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(ASSETS_DIR, 'store-screenshot-2-en.png'), Buffer.from(optShotEn.data, 'base64'));
+    console.log('[e2e] Saved assets/store-screenshot-2-en.png (1280x800)');
+
+    const zhBackBtn = await optCdp.eval(`
+      (async () => {
         document.getElementById('uiLanguage').value = 'zh_CN';
         document.getElementById('uiLanguage').dispatchEvent(new Event('change'));
         await new Promise((r) => setTimeout(r, 150));
-        return { enBtn, enArchive, zhBtn: document.getElementById('btnTestAi').textContent };
+        document.getElementById('langStatusMsg').textContent = '';
+        return document.getElementById('btnTestAi').textContent;
       })()
     `);
-    console.log('[e2e] Language switch verified:', enSwitchOk);
+    console.log('[e2e] Language switch verified:', { ...enSwitchOk, zhBtn: zhBackBtn });
     assert.equal(enSwitchOk.enBtn, 'Test Connection');
     assert.equal(enSwitchOk.enArchive, 'Archive');
-    assert.equal(enSwitchOk.zhBtn, '测试连接');
+    assert.equal(zhBackBtn, '测试连接');
 
     // Verify custom prompt field, template selector, and reset button work
     const promptOk = await optCdp.eval(`
@@ -352,6 +367,53 @@ async function main() {
     const spShot = await spCdp.send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(path.join(ASSETS_DIR, 'store-screenshot-1.png'), Buffer.from(spShot.data, 'base64'));
     console.log('[e2e] Saved assets/store-screenshot-1.png (1280x800)');
+
+    // Capture English SidePanel screenshot too (without mutating persisted bookmarks)
+    const manualPlanEn = {
+      folders: ['AI Tools & Chat', 'Dev & Tech', 'Ops & Network'],
+      assignments: [
+        { id: seededIds.b1, folder: 'AI Tools & Chat' },
+        { id: seededIds.b2, folder: 'AI Tools & Chat', rename: 'Way to AGI' },
+        { id: seededIds.b3, folder: 'Dev & Tech' },
+        { id: seededIds.b4, folder: 'Ops & Network' },
+        { id: seededIds.b5, folder: '__TEMP__' },
+      ],
+    };
+    await spCdp.eval(`
+      (async () => {
+        await chrome.storage.local.set({
+          abo_settings_v1: {
+            ...(await chrome.storage.local.get('abo_settings_v1')).abo_settings_v1,
+            uiLanguage: 'en',
+            archiveFolderName: 'Archive',
+            frequentFolderName: 'Frequent',
+          }
+        });
+        await new Promise((r) => setTimeout(r, 150));
+        document.getElementById('manualJsonInput').value = ${JSON.stringify(JSON.stringify(manualPlanEn))};
+        document.getElementById('btnParseManual').click();
+      })()
+    `);
+    const spShotEn = await spCdp.send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(ASSETS_DIR, 'store-screenshot-1-en.png'), Buffer.from(spShotEn.data, 'base64'));
+    console.log('[e2e] Saved assets/store-screenshot-1-en.png (1280x800)');
+
+    // Switch back to zh_CN before Chinese apply/undo assertions
+    await spCdp.eval(`
+      (async () => {
+        await chrome.storage.local.set({
+          abo_settings_v1: {
+            ...(await chrome.storage.local.get('abo_settings_v1')).abo_settings_v1,
+            uiLanguage: 'zh_CN',
+            archiveFolderName: '历史归档',
+            frequentFolderName: '常用',
+          }
+        });
+        await new Promise((r) => setTimeout(r, 150));
+        document.getElementById('manualJsonInput').value = ${JSON.stringify(JSON.stringify(manualPlan))};
+        document.getElementById('btnParseManual').click();
+      })()
+    `);
 
     // Apply plan in real Chromium
     const afterApply = await spCdp.eval(`

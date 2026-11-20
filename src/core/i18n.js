@@ -193,7 +193,7 @@ export const MESSAGES = {
 
     // SidePanel dynamic statuses
     scanNoteFreq: '"{frequentFolder}": {frequentCount}, ',
-    scanNoteMain: '{freqPart}to organize: {activeCount}, remaining {historicalCount} kept in "{archiveFolder}".',
+    scanNoteMain: '{freqPart}To organize: {activeCount}, remaining {historicalCount} kept in "{archiveFolder}".',
     previewSummary: '{foldersCount} category folders ({activeTotal} bookmarks), {tempCount} temporary links, {dupCount} duplicates removed.',
     previewMore: '... and {count} more',
     tempFolderPath: '{archiveFolder} / {tempFolder}',

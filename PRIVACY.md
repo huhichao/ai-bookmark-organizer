@@ -1,15 +1,15 @@
-# Privacy Policy for AI 书签整理助手
+# Privacy Policy for AI Bookmark Organizer (AI 书签整理助手)
 
 Last updated: 2026-11-20
 
 ## Overview
 
-AI 书签整理助手 ("the Extension") helps you analyze, deduplicate, categorize, and archive your Chrome bookmarks. Your privacy is central to how this extension is built.
+AI Bookmark Organizer ("the Extension") helps you analyze, deduplicate, categorize, and archive your Chrome bookmarks. Your privacy is central to how this extension is built.
 
 ## What Data the Extension Accesses
 
-- **Bookmarks Data**: Bookmark IDs, titles, URLs, folder structure, and timestamps (`dateAdded`, `dateLastUsed`) accessed via Chrome's `chrome.bookmarks` API when you open and run analysis in the extension.
-- **User Configuration**: Your selected AI mode, model name, custom Base URL, API Key (if provided), and organization preferences (such as recent cutoff days).
+- **Web History (Bookmarks Data)**: Bookmark IDs, titles, URLs, folder structure, and timestamps (`dateAdded`, `dateLastUsed`) accessed via Chrome's `chrome.bookmarks` API when you open and run analysis in the extension. The extension does **not** inject content scripts, does **not** read webpage DOM content, and does **not** access `chrome.history`.
+- **Authentication Information (User-Provided API Keys)**: If you choose a cloud AI provider in Settings, your self-provided API key and endpoint settings are saved locally in `chrome.storage.local` so you do not have to re-enter them.
 
 ## How Data Is Stored
 
@@ -18,12 +18,12 @@ AI 书签整理助手 ("the Extension") helps you analyze, deduplicate, categori
 
 ## How Data Is Transmitted Off-Device
 
-- **Chrome Built-in AI Mode & Manual Prompt Mode**: All bookmark processing stays 100% on your device; the extension makes zero network requests.
-- **Configured Cloud / Custom AI API Mode**: When you explicitly click to run AI categorization, the extension sends only your bookmark titles and sanitized URLs (query parameters stripped by default to protect tokens/secrets) directly from your browser to the AI API endpoint you configured (for example OpenAI, DeepSeek, Anthropic, Google Gemini, or your custom endpoint). Please refer to your chosen AI provider's privacy policy for how they handle API requests.
+- **Chrome Built-in AI Mode & No-Key Web AI Mode**: All bookmark processing stays 100% on your device; the extension makes zero network requests.
+- **Configured Cloud / Custom AI API Mode**: When you explicitly click to run AI categorization, the extension sends only your bookmark titles and sanitized URLs (query parameters stripped by default to protect tokens/secrets), authenticated with your own API key, directly from your browser to the AI API endpoint you configured (for example OpenAI, DeepSeek, Anthropic, Google Gemini, or your custom endpoint). Please refer to your chosen AI provider's privacy policy for how they handle API requests.
 
 ## Data Retention and Deletion
 
-- Bookmark snapshots and settings remain in local browser storage until you click "清除本地缓存/快照" in Settings or uninstall the extension.
+- Bookmark snapshots and settings remain in local browser storage until you click "Clear Snapshot" ("清除本地快照") in Settings or uninstall the extension.
 
 ## Contact
 

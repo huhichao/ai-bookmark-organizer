@@ -1,6 +1,6 @@
 import { analyzeBookmarkTree } from '../core/analyzer.js';
 import { applyOrganizationPlan } from '../core/applier.js';
-import { PROVIDER_PRESETS, STORAGE_KEYS } from '../core/constants.js';
+import { PROVIDER_PRESETS, STORAGE_KEYS, getProviderLabel } from '../core/constants.js';
 import { applyI18nToDocument, getLocalizedDefaults, resolveLanguage, t } from '../core/i18n.js';
 import {
   buildManualPromptBundle,
@@ -28,8 +28,7 @@ async function refreshHeaderAndSnapshot() {
   currentLang = resolveLanguage(currentSettings.uiLanguage);
   applyI18nToDocument(currentLang);
 
-  const preset = PROVIDER_PRESETS[currentSettings.provider];
-  const label = preset ? preset.label : currentSettings.provider;
+  const label = getProviderLabel(currentSettings.provider, currentLang);
   el('modelBadge').textContent = `${label} · ${currentSettings.model || t('modelUnset', {}, currentLang)}`;
   el('quickIncludeArchived').checked = Boolean(currentSettings.includeArchived);
   el('quickIgnoreDate').checked = Boolean(currentSettings.ignoreDateCutoff);

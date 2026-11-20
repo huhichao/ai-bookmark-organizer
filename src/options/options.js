@@ -4,6 +4,7 @@ import {
   PROVIDER_PRESETS,
   getDefaultPrompt,
   getPromptTemplates,
+  getProviderLabel,
 } from '../core/constants.js';
 import {
   applyI18nToDocument,
@@ -58,14 +59,14 @@ function updateProviderFieldVisibility(providerId) {
   el('modelField').classList.toggle('hidden', providerId === 'builtin');
 }
 
-function populateProviderOptions() {
+function populateProviderOptions(lang = currentLang) {
   const select = el('provider');
   const prev = select.value;
   select.replaceChildren();
   for (const preset of Object.values(PROVIDER_PRESETS)) {
     const opt = document.createElement('option');
     opt.value = preset.id;
-    opt.textContent = preset.label;
+    opt.textContent = getProviderLabel(preset.id, lang);
     select.appendChild(opt);
   }
   if (prev) select.value = prev;
@@ -111,10 +112,10 @@ function isKnownDefaultPrompt(promptText) {
 }
 
 async function init() {
-  populateProviderOptions();
   const s = await loadSettings();
   currentLang = resolveLanguage(s.uiLanguage);
   applyI18nToDocument(currentLang);
+  populateProviderOptions(currentLang);
   populatePromptTemplates(currentLang);
 
   el('uiLanguage').value = s.uiLanguage || 'auto';
@@ -172,6 +173,7 @@ el('uiLanguage').addEventListener('change', async (e) => {
     : currentPromptVal;
 
   applyI18nToDocument(nextLang);
+  populateProviderOptions(nextLang);
   populatePromptTemplates(nextLang);
   el('archiveFolderName').value = nextArchiveName;
   el('customPrompt').value = nextPrompt;

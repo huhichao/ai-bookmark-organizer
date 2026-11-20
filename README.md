@@ -21,7 +21,7 @@ A Manifest V3 Chrome extension built with Google Chrome's **Build with AI / Mode
 
 | Side Panel (Scan, Scope, Preview, Apply/Undo) | Settings (Language, AI Provider, Rules, Prompts) |
 | :---: | :---: |
-| ![Side Panel](assets/store-screenshot-1.png) | ![Settings](assets/store-screenshot-2.png) |
+| ![Side Panel](assets/store-screenshot-1-en.png) | ![Settings](assets/store-screenshot-2-en.png) |
 
 ## Installation
 

@@ -7,6 +7,7 @@ export const PROVIDER_PRESETS = {
   builtin: {
     id: 'builtin',
     label: 'Chrome 内置 AI (LanguageModel / Gemini Nano)',
+    labelEn: 'Chrome Built-in AI (LanguageModel / Gemini Nano)',
     needsKey: false,
     needsUrl: false,
     baseUrl: '',
@@ -15,6 +16,7 @@ export const PROVIDER_PRESETS = {
   openai: {
     id: 'openai',
     label: 'OpenAI',
+    labelEn: 'OpenAI',
     needsKey: true,
     needsUrl: true,
     baseUrl: 'https://api.openai.com/v1',
@@ -23,6 +25,7 @@ export const PROVIDER_PRESETS = {
   deepseek: {
     id: 'deepseek',
     label: 'DeepSeek',
+    labelEn: 'DeepSeek',
     needsKey: true,
     needsUrl: true,
     baseUrl: 'https://api.deepseek.com/v1',
@@ -31,6 +34,7 @@ export const PROVIDER_PRESETS = {
   dashscope: {
     id: 'dashscope',
     label: '阿里云百炼 (DashScope 兼容接口)',
+    labelEn: 'Alibaba DashScope (OpenAI-compatible)',
     needsKey: true,
     needsUrl: true,
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
@@ -39,6 +43,7 @@ export const PROVIDER_PRESETS = {
   siliconflow: {
     id: 'siliconflow',
     label: '硅基流动 (SiliconFlow)',
+    labelEn: 'SiliconFlow',
     needsKey: true,
     needsUrl: true,
     baseUrl: 'https://api.siliconflow.cn/v1',
@@ -47,6 +52,7 @@ export const PROVIDER_PRESETS = {
   anthropic: {
     id: 'anthropic',
     label: 'Anthropic Claude',
+    labelEn: 'Anthropic Claude',
     needsKey: true,
     needsUrl: true,
     baseUrl: 'https://api.anthropic.com/v1',
@@ -55,6 +61,7 @@ export const PROVIDER_PRESETS = {
   gemini: {
     id: 'gemini',
     label: 'Google Gemini API',
+    labelEn: 'Google Gemini API',
     needsKey: true,
     needsUrl: true,
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
@@ -63,6 +70,7 @@ export const PROVIDER_PRESETS = {
   ollama: {
     id: 'ollama',
     label: '本地 Ollama (OpenAI 兼容)',
+    labelEn: 'Local Ollama (OpenAI-compatible)',
     needsKey: false,
     needsUrl: true,
     baseUrl: 'http://localhost:11434/v1',
@@ -71,12 +79,19 @@ export const PROVIDER_PRESETS = {
   custom: {
     id: 'custom',
     label: '自定义 OpenAI 兼容接口',
+    labelEn: 'Custom OpenAI-compatible Endpoint',
     needsKey: true,
     needsUrl: true,
     baseUrl: '',
     model: '',
   },
 };
+
+export function getProviderLabel(providerId, lang = 'zh_CN') {
+  const preset = PROVIDER_PRESETS[providerId];
+  if (!preset) return providerId;
+  return lang === 'en' ? (preset.labelEn || preset.label) : preset.label;
+}
 
 export const DEFAULT_CLASSIFICATION_PROMPT = `你是一个专业的浏览器书签整理助手。
 你的任务是将用户提供的书签归类到清晰简洁的主题文件夹中，并识别出明显属于一次性/过期促销/临时测试/隐私政策页的链接（归入 "__TEMP__" 特殊桶，表示放入「历史归档/临时与一次性链接」）。
