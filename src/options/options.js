@@ -1,21 +1,45 @@
 import { testAiConnection } from '../core/ai-client.js';
 import { PROVIDER_PRESETS } from '../core/constants.js';
+import { isUrlCoveredByPatterns, toOriginMatchPattern } from '../core/permissions.js';
 import { clearSnapshot, getLastSnapshot } from '../core/snapshot.js';
 import { loadSettings, saveSettings } from '../core/storage.js';
 
 const el = (id) => document.getElementById(id);
+let grantedOriginPatterns = (() => {
+  try {
+    return chrome.runtime.getManifest()?.host_permissions || [];
+  } catch {
+    return [];
+  }
+})();
 
-function setStatus(msg) {
-  el('statusMsg').textContent = msg;
+async function refreshGrantedOrigins() {
+  try {
+    const manifestHosts = chrome.runtime.getManifest()?.host_permissions || [];
+    const perms = await chrome.permissions.getAll();
+    grantedOriginPatterns = [...new Set([...manifestHosts, ...(perms.origins || [])])];
+  } catch {
+    grantedOriginPatterns = chrome.runtime.getManifest()?.host_permissions || [];
+  }
+}
+
+function setInlineStatus(targetId, msg, kind = 'info') {
+  const node = el(targetId);
+  if (node) {
+    node.textContent = msg;
+    node.className = `status-inline ${kind}`;
+  }
+  if (el('statusMsg')) {
+    el('statusMsg').textContent = msg;
+  }
+}
+
+function setStatus(msg, kind = 'info') {
+  setInlineStatus('aiStatusMsg', msg, kind);
 }
 
 function getOriginPattern(rawUrl) {
-  try {
-    const u = new URL(rawUrl);
-    return `${u.origin}/*`;
-  } catch {
-    return null;
-  }
+  return toOriginMatchPattern(rawUrl);
 }
 
 function updateProviderFieldVisibility(providerId) {
@@ -67,6 +91,7 @@ async function init() {
   el('stripQueryParams').checked = Boolean(s.stripQueryParams);
   el('customPromptHint').value = s.customPromptHint || '';
   updateProviderFieldVisibility(s.provider);
+  await refreshGrantedOrigins();
   await refreshSnapshotInfo();
 }
 
@@ -89,43 +114,85 @@ function readAiForm() {
   };
 }
 
-// Call chrome.permissions.request synchronously before any await to preserve user gesture
-function requestOriginPermissionIfNeeded(form) {
+function validateAiForm(form) {
   const preset = PROVIDER_PRESETS[form.provider];
-  if (!preset?.needsUrl || !form.baseUrl) return Promise.resolve(true);
+  if (preset?.needsUrl) {
+    if (!form.baseUrl) return '请先填写 API Base URL（需以 http:// 或 https:// 开头）。';
+    if (!getOriginPattern(form.baseUrl)) return 'API Base URL 格式无效，请以 http:// 或 https:// 开头。';
+  }
+  if (form.provider !== 'builtin' && !form.model) {
+    return '请先填写模型名称。';
+  }
+  if (preset?.needsKey && !form.apiKey) {
+    return '请先填写 API Key。';
+  }
+  return null;
+}
+
+// Call chrome.permissions.request synchronously before any await ONLY when origin is not already granted
+async function requestOriginPermissionIfNeeded(form) {
+  const preset = PROVIDER_PRESETS[form.provider];
+  if (!preset?.needsUrl || !form.baseUrl) return true;
   const originPattern = getOriginPattern(form.baseUrl);
-  if (!originPattern) return Promise.resolve(false);
-  return chrome.permissions.request({ origins: [originPattern] });
+  if (!originPattern) return false;
+  if (isUrlCoveredByPatterns(form.baseUrl, grantedOriginPatterns)) {
+    return true;
+  }
+  const granted = await chrome.permissions.request({ origins: [originPattern] });
+  if (granted) await refreshGrantedOrigins();
+  return granted;
 }
 
 el('btnSaveAi').addEventListener('click', async () => {
   const form = readAiForm();
+  const validationErr = validateAiForm(form);
+  if (validationErr) {
+    setInlineStatus('aiStatusMsg', validationErr, 'err');
+    return;
+  }
+  const btn = el('btnSaveAi');
+  btn.disabled = true;
   try {
     const granted = await requestOriginPermissionIfNeeded(form);
     if (!granted) {
-      setStatus('未授予目标 API 域名网络权限，请检查 Base URL 格式并允许权限请求。');
+      setInlineStatus('aiStatusMsg', '未授予目标 API 域名网络权限，请检查 Base URL 格式并允许权限请求。', 'err');
       return;
     }
     await saveSettings(form);
-    setStatus('AI 接口配置已保存。');
+    setInlineStatus('aiStatusMsg', 'AI 接口配置已保存。', 'ok');
   } catch (err) {
-    setStatus(`保存失败: ${err.message}`);
+    setInlineStatus('aiStatusMsg', `保存失败: ${err.message}`, 'err');
+  } finally {
+    btn.disabled = false;
   }
 });
 
 el('btnTestAi').addEventListener('click', async () => {
   const form = readAiForm();
+  const validationErr = validateAiForm(form);
+  if (validationErr) {
+    setInlineStatus('aiStatusMsg', validationErr, 'err');
+    return;
+  }
+  const btn = el('btnTestAi');
+  const origLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '测试中...';
+  setInlineStatus('aiStatusMsg', '正在请求接口权限并测试连接...', 'info');
   try {
     const granted = await requestOriginPermissionIfNeeded(form);
     if (!granted) {
-      setStatus('未授予目标 API 域名网络权限，无法测试。');
+      setInlineStatus('aiStatusMsg', '未授予目标 API 域名网络权限，无法测试。', 'err');
       return;
     }
-    setStatus('正在测试 AI 连接...');
+    setInlineStatus('aiStatusMsg', '正在发送测试请求，请稍候...', 'info');
     const reply = await testAiConnection(form);
-    setStatus(`连接成功！模型响应：${reply}`);
+    setInlineStatus('aiStatusMsg', `连接成功！模型响应：${reply}`, 'ok');
   } catch (err) {
-    setStatus(`连接测试失败: ${err.message}`);
+    setInlineStatus('aiStatusMsg', `连接测试失败: ${err.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origLabel;
   }
 });
 
@@ -141,7 +208,7 @@ el('btnSaveRules').addEventListener('click', async () => {
     stripQueryParams: el('stripQueryParams').checked,
     customPromptHint: el('customPromptHint').value.trim(),
   });
-  setStatus('整理规则设置已保存。');
+  setInlineStatus('rulesStatusMsg', '整理规则设置已保存。', 'ok');
 });
 
 el('btnExportSnapshot').addEventListener('click', async () => {
@@ -159,7 +226,7 @@ el('btnExportSnapshot').addEventListener('click', async () => {
 el('btnClearSnapshot').addEventListener('click', async () => {
   await clearSnapshot();
   await refreshSnapshotInfo();
-  setStatus('已清除本地快照。');
+  setInlineStatus('snapshotStatusMsg', '已清除本地快照。', 'ok');
 });
 
 init();

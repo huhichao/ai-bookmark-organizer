@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -128,6 +129,13 @@ async function main() {
   const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'abo-e2e-'));
 
   console.log('[e2e] Launching Chromium:', chromeExe);
+  const mockServer = http.createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }));
+  });
+  await new Promise((r) => mockServer.listen(0, '127.0.0.1', r));
+  const mockPort = mockServer.address().port;
+
   const proc = spawn(
     chromeExe,
     [
@@ -166,6 +174,42 @@ async function main() {
       })()
     `);
     console.log('[e2e] Options page verified:', optErrors);
+
+    // Verify Test Connection validation & real mock request on Options page
+    const testEmptyKeyMsg = await optCdp.eval(`
+      (() => {
+        document.getElementById('btnTestAi').click();
+        return document.getElementById('aiStatusMsg').textContent;
+      })()
+    `);
+    assert.ok(testEmptyKeyMsg.includes('API Key'), `Expected API Key hint, got: ${testEmptyKeyMsg}`);
+
+    const testMockMsg = await optCdp.eval(`
+      (async () => {
+        document.getElementById('provider').value = 'ollama';
+        document.getElementById('provider').dispatchEvent(new Event('change'));
+        document.getElementById('baseUrl').value = 'http://127.0.0.1:${mockPort}/v1';
+        document.getElementById('model').value = 'test-model';
+        document.getElementById('btnTestAi').click();
+        for (let i = 0; i < 30; i++) {
+          const t = document.getElementById('aiStatusMsg').textContent || '';
+          if (t.includes('连接成功') || t.includes('失败')) return t;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        return document.getElementById('aiStatusMsg').textContent;
+      })()
+    `);
+    console.log('[e2e] Options Test Connection result:', testMockMsg);
+    assert.ok(testMockMsg.includes('连接成功'), `Expected connection success, got: ${testMockMsg}`);
+
+    // Reset back to DeepSeek preset before screenshot
+    await optCdp.eval(`
+      (() => {
+        document.getElementById('provider').value = 'deepseek';
+        document.getElementById('provider').dispatchEvent(new Event('change'));
+        document.getElementById('aiStatusMsg').textContent = '';
+      })()
+    `);
 
     const optShot = await optCdp.send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(path.join(ASSETS_DIR, 'store-screenshot-2.png'), Buffer.from(optShot.data, 'base64'));
@@ -304,6 +348,9 @@ async function main() {
     assert.equal(consoleErrors.length, 0, `Unexpected runtime exceptions: ${JSON.stringify(consoleErrors)}`);
     console.log('[e2e] ALL REAL CHROMIUM E2E CHECKS PASSED!');
   } finally {
+    try {
+      mockServer.close();
+    } catch {}
     try {
       proc.kill('SIGTERM');
     } catch {}

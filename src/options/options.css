@@ -161,10 +161,28 @@ button {
   display: none;
 }
 
-.status {
-  margin: 0;
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.status,
+.status-inline {
+  margin: 10px 0 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--primary);
   min-height: 20px;
+}
+
+.status-inline:empty {
+  display: none;
+}
+
+.status-inline.ok {
+  color: #16a34a;
+}
+
+.status-inline.err {
+  color: var(--danger);
 }

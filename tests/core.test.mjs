@@ -4,6 +4,24 @@ import { cleanBookmarkTitle, sanitizeUrlForAi } from '../src/core/sanitizer.js';
 import { analyzeBookmarkTree } from '../src/core/analyzer.js';
 import { extractJsonObject } from '../src/core/ai-client.js';
 import { buildPlanFromAiResponse, FALLBACK_FOLDER_NAME } from '../src/core/planner.js';
+import { isUrlCoveredByPatterns, toOriginMatchPattern } from '../src/core/permissions.js';
+
+test('toOriginMatchPattern and isUrlCoveredByPatterns strip ports and match hosts', () => {
+  assert.equal(toOriginMatchPattern('http://127.0.0.1:11434/v1'), 'http://127.0.0.1/*');
+  assert.equal(toOriginMatchPattern('not-a-url'), null);
+  assert.equal(
+    isUrlCoveredByPatterns('http://127.0.0.1:54321/v1', ['http://127.0.0.1/*']),
+    true
+  );
+  assert.equal(
+    isUrlCoveredByPatterns('https://api.deepseek.com/v1', ['https://api.deepseek.com/*']),
+    true
+  );
+  assert.equal(
+    isUrlCoveredByPatterns('https://relay.example.com/v1', ['https://api.deepseek.com/*']),
+    false
+  );
+});
 
 test('cleanBookmarkTitle removes invisible zero-width characters', () => {
   const dirty = '\u200c\ufeff\u2060通往 AGI 之路';

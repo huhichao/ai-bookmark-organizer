@@ -74,12 +74,26 @@ async function callBuiltInAi(systemPrompt, userPrompt) {
   }
 }
 
+async function fetchWithTimeout(url, options, timeoutMs = 20000) {
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err?.name === 'TimeoutError') {
+      throw new Error(`请求超时（>${Math.round(timeoutMs / 1000)}s），请检查网络或代理设置`, { cause: err });
+    }
+    throw new Error(`网络请求失败: ${err?.message || String(err)}（请检查 Base URL、代理或域名权限）`, { cause: err });
+  }
+}
+
 async function callOpenAiCompatible({ baseUrl, apiKey, model }, systemPrompt, userPrompt) {
   const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
   const headers = { 'Content-Type': 'application/json' };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-  const res = await fetch(endpoint, {
+  const res = await fetchWithTimeout(endpoint, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -101,7 +115,7 @@ async function callOpenAiCompatible({ baseUrl, apiKey, model }, systemPrompt, us
 
 async function callAnthropic({ baseUrl, apiKey, model }, systemPrompt, userPrompt) {
   const endpoint = `${baseUrl.replace(/\/+$/, '')}/messages`;
-  const res = await fetch(endpoint, {
+  const res = await fetchWithTimeout(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -127,7 +141,7 @@ async function callAnthropic({ baseUrl, apiKey, model }, systemPrompt, userPromp
 async function callGemini({ baseUrl, apiKey, model }, systemPrompt, userPrompt) {
   const cleanBase = baseUrl.replace(/\/+$/, '');
   const endpoint = `${cleanBase}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(endpoint, {
+  const res = await fetchWithTimeout(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
