@@ -14,12 +14,21 @@ let currentAnalysis = null;
 let currentPlan = null;
 let currentSettings = null;
 let currentLang = 'en';
+let lastStatusSpec = null;
 
 const el = (id) => document.getElementById(id);
 
 function setStatus(msg, kind = 'info') {
+  lastStatusSpec = null;
   const node = el('statusText');
   node.textContent = msg;
+  node.className = `status-banner ${kind}`;
+}
+
+function setStatusKey(key, vars = {}, kind = 'info') {
+  lastStatusSpec = { key, vars, kind };
+  const node = el('statusText');
+  node.textContent = t(key, vars, currentLang);
   node.className = `status-banner ${kind}`;
 }
 
@@ -151,10 +160,10 @@ async function handleScopeToggleChange() {
         frequentCount: currentAnalysis.stats.frequentCount,
       }, currentLang)
     : '';
-  setStatus(t('statusScopeUpdated', {
+  setStatusKey('statusScopeUpdated', {
     freqPart,
     activeCount: currentAnalysis.stats.activeCount,
-  }, currentLang), 'info');
+  }, 'info');
 }
 
 el('quickIncludeArchived').addEventListener('change', handleScopeToggleChange);
@@ -163,11 +172,11 @@ el('quickExtractFrequent').addEventListener('change', handleScopeToggleChange);
 
 el('btnScan').addEventListener('click', async () => {
   try {
-    setStatus(t('statusScanning', {}, currentLang), 'loading');
+    setStatusKey('statusScanning', {}, 'loading');
     await scanBookmarks();
-    setStatus(t('statusScanDone', {}, currentLang), 'ok');
+    setStatusKey('statusScanDone', {}, 'ok');
   } catch (err) {
-    setStatus(t('statusScanFail', { err: err.message }, currentLang), 'err');
+    setStatusKey('statusScanFail', { err: err.message }, 'err');
   }
 });
 
@@ -175,14 +184,14 @@ el('btnAiPlan').addEventListener('click', async () => {
   if (!currentAnalysis) await scanBookmarks();
   const preset = PROVIDER_PRESETS[currentSettings.provider];
   if (preset?.needsKey && !currentSettings.apiKey) {
-    setStatus(t('statusMissingKey', {}, currentLang), 'err');
+    setStatusKey('statusMissingKey', {}, 'err');
     return;
   }
 
   const btn = el('btnAiPlan');
   btn.disabled = true;
   btn.textContent = t('btnAiPlanning', {}, currentLang);
-  setStatus(t('statusAiRunning', {}, currentLang), 'loading');
+  setStatusKey('statusAiRunning', {}, 'loading');
   try {
     const plan = await generateAiOrganizationPlan(
       currentAnalysis,
@@ -190,9 +199,9 @@ el('btnAiPlan').addEventListener('click', async () => {
       (msg) => setStatus(msg, 'loading')
     );
     renderPreview(plan);
-    setStatus(t('statusAiDone', {}, currentLang), 'ok');
+    setStatusKey('statusAiDone', {}, 'ok');
   } catch (err) {
-    setStatus(t('statusAiFail', { err: err.message }, currentLang), 'err');
+    setStatusKey('statusAiFail', { err: err.message }, 'err');
   } finally {
     btn.disabled = false;
     btn.textContent = t('btnAiPlan', {}, currentLang);
@@ -211,12 +220,12 @@ function switchPlanMode(mode) {
 
 el('tabApiMode').addEventListener('click', () => {
   switchPlanMode('api');
-  setStatus(t('statusSwitchedApi', {}, currentLang), 'info');
+  setStatusKey('statusSwitchedApi', {}, 'info');
 });
 
 el('tabManualMode').addEventListener('click', () => {
   switchPlanMode('manual');
-  setStatus(t('statusSwitchedManual', {}, currentLang), 'info');
+  setStatusKey('statusSwitchedManual', {}, 'info');
 });
 
 el('btnCopyPrompt').addEventListener('click', async () => {
@@ -226,7 +235,7 @@ el('btnCopyPrompt').addEventListener('click', async () => {
   const btn = el('btnCopyPrompt');
   btn.textContent = t('btnCopied', {}, currentLang);
   setTimeout(() => { btn.textContent = t('btnCopyPrompt', {}, currentLang); }, 1500);
-  setStatus(t('statusCopied', { count: currentAnalysis.activeItems.length }, currentLang), 'ok');
+  setStatusKey('statusCopied', { count: currentAnalysis.activeItems.length }, 'ok');
 });
 
 el('btnParseManual').addEventListener('click', async () => {
@@ -235,9 +244,9 @@ el('btnParseManual').addEventListener('click', async () => {
     const raw = el('manualJsonInput').value;
     const plan = buildPlanFromAiResponse(currentAnalysis, raw, currentSettings);
     renderPreview(plan);
-    setStatus(t('statusJsonOk', {}, currentLang), 'ok');
+    setStatusKey('statusJsonOk', {}, 'ok');
   } catch (err) {
-    setStatus(t('statusJsonFail', { err: err.message }, currentLang), 'err');
+    setStatusKey('statusJsonFail', { err: err.message }, 'err');
   }
 });
 
@@ -250,9 +259,9 @@ el('btnApply').addEventListener('click', async () => {
     const result = await applyOrganizationPlan(currentPlan, (msg) => setStatus(msg, 'loading'));
     await scanBookmarks();
     await refreshHeaderAndSnapshot();
-    setStatus(t('statusApplyDone', result, currentLang), 'ok');
+    setStatusKey('statusApplyDone', result, 'ok');
   } catch (err) {
-    setStatus(t('statusApplyFail', { err: err.message }, currentLang), 'err');
+    setStatusKey('statusApplyFail', { err: err.message }, 'err');
   } finally {
     btn.disabled = false;
     btn.textContent = t('btnApply', {}, currentLang);
@@ -264,12 +273,12 @@ el('btnUndo').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = t('btnUndoing', {}, currentLang);
   try {
-    setStatus(t('statusUndoing', {}, currentLang), 'loading');
+    setStatusKey('statusUndoing', {}, 'loading');
     await restoreLastSnapshot();
     await scanBookmarks();
-    setStatus(t('statusUndoDone', {}, currentLang), 'ok');
+    setStatusKey('statusUndoDone', {}, 'ok');
   } catch (err) {
-    setStatus(t('statusUndoFail', { err: err.message }, currentLang), 'err');
+    setStatusKey('statusUndoFail', { err: err.message }, 'err');
   } finally {
     btn.textContent = t('btnUndo', {}, currentLang);
     await refreshHeaderAndSnapshot();
@@ -282,12 +291,15 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     if (changes[STORAGE_KEYS.SETTINGS]) {
       await scanBookmarks();
       if (currentPlan) renderPreview(currentPlan);
+      if (lastStatusSpec) {
+        setStatusKey(lastStatusSpec.key, lastStatusSpec.vars, lastStatusSpec.kind);
+      }
     }
   }
 });
 
 (async () => {
   await refreshHeaderAndSnapshot();
-  setStatus(t('statusReady', {}, currentLang), 'info');
+  setStatusKey('statusReady', {}, 'info');
   await scanBookmarks();
 })();

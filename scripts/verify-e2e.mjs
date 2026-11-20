@@ -105,7 +105,143 @@ async function waitForTargets(port, predicate, timeoutMs = 15000) {
   throw new Error('Timed out waiting for CDP target');
 }
 
-async function openTab(port, url) {
+async function renderSidepanelStoreFrame(cdp, panelPngBase64, lang) {
+  const isEn = lang === 'en';
+  const title = isEn ? 'AI Bookmark Organizer' : 'AI 书签整理助手';
+  const subtitle = isEn
+    ? 'Organize bookmarks cleanly in Chrome Side Panel'
+    : '在 Chrome 右侧边栏高效整理与归档书签';
+  const pills = isEn
+    ? ['AI Tools & Chat', 'Dev & Tech', 'Ops & Network', 'Frequent', 'Archive']
+    : ['AI 对话与工具', '开发与技术', '运维与网络', '常用', '历史归档'];
+  const bullets = isEn
+    ? [
+        'Smart categorization via Built-in AI, BYOK API, or No-Key Web AI',
+        'Keep recent bookmarks organized, archive old folders safely',
+        'Auto-dedup, clean garbled titles & one-click snapshot undo',
+      ]
+    : [
+        '支持 Chrome 内置 AI、自定义大模型 API 与免 Key 网页 AI 模式',
+        '近期常用书签智能归类，早期旧书签完整移入「历史归档」',
+        '自动去重、清理乱码标题，支持整理前快照一键撤销',
+      ];
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1280px; height: 800px; overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 55%, #eef2ff 100%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .browser {
+    width: 1232px; height: 752px;
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .chrome-bar {
+    height: 44px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  }
+  .dots { display: flex; gap: 7px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; background: #cbd5e1; }
+  .dot.r { background: #fca5a5; } .dot.y { background: #fcd34d; } .dot.g { background: #86efac; }
+  .omnibox {
+    flex: 1; height: 28px; background: #ffffff; border: 1px solid #e2e8f0;
+    border-radius: 999px; display: flex; align-items: center; padding: 0 14px;
+    color: #64748b; font-size: 12px;
+  }
+  .bookmarks-bar {
+    height: 34px; background: #ffffff; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; gap: 8px; padding: 0 14px;
+  }
+  .bm-pill {
+    font-size: 12px; font-weight: 600; color: #334155;
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 3px 10px;
+  }
+  .bm-pill.archive { color: #64748b; margin-left: auto; }
+  .workspace { flex: 1; display: flex; min-height: 0; }
+  .left-hero {
+    flex: 1; padding: 56px 52px; display: flex; flex-direction: column; justify-content: center;
+    background: radial-gradient(circle at top left, #eff6ff 0%, #ffffff 70%);
+    border-right: 1px solid #e2e8f0;
+  }
+  .badge {
+    display: inline-block; align-self: flex-start;
+    background: #dbeafe; color: #1d4ed8; font-size: 12px; font-weight: 700;
+    padding: 4px 12px; border-radius: 999px; margin-bottom: 16px;
+  }
+  .left-hero h1 { font-size: 36px; line-height: 1.2; color: #0f172a; margin-bottom: 14px; }
+  .left-hero p { font-size: 17px; color: #475569; margin-bottom: 28px; }
+  .list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .list li {
+    display: flex; align-items: flex-start; gap: 10px;
+    font-size: 15px; color: #1e293b; line-height: 1.5;
+  }
+  .check {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    background: #2563eb; color: #fff; font-size: 13px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; margin-top: 1px;
+  }
+  .sidepanel-dock {
+    width: 400px; height: 100%; background: #f8fafc;
+    display: flex; align-items: flex-start; justify-content: center;
+    overflow: hidden;
+  }
+  .sidepanel-dock img { width: 400px; height: auto; display: block; }
+</style>
+</head>
+<body>
+  <div class="browser">
+    <div class="chrome-bar">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <div class="omnibox">chrome://bookmarks — ${title}</div>
+    </div>
+    <div class="bookmarks-bar">
+      ${pills.map((p, idx) => `<span class="bm-pill${idx === pills.length - 1 ? ' archive' : ''}">📁 ${p}</span>`).join('')}
+    </div>
+    <div class="workspace">
+      <div class="left-hero">
+        <span class="badge">Chrome Manifest V3 · Side Panel</span>
+        <h1>${title}</h1>
+        <p>${subtitle}</p>
+        <ul class="list">
+          ${bullets.map((b) => `<li><span class="check">✓</span><span>${b}</span></li>`).join('')}
+        </ul>
+      </div>
+      <div class="sidepanel-dock">
+        <img src="data:image/png;base64,${panelPngBase64}" />
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: 1280,
+    height: 800,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await cdp.send('Page.setDocumentContent', {
+    frameId: (await cdp.send('Page.getFrameTree')).frameTree.frame.id,
+    html,
+  });
+  await sleep(200);
+  const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+  return Buffer.from(shot.data, 'base64');
+}
+
+async function openTab(port, url, width = 1280, height = 800) {
   const target = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, {
     method: 'PUT',
   }).then((r) => r.json());
@@ -114,8 +250,8 @@ async function openTab(port, url) {
   await cdp.send('Page.enable');
   await cdp.send('Runtime.enable');
   await cdp.send('Emulation.setDeviceMetricsOverride', {
-    width: 1280,
-    height: 800,
+    width,
+    height,
     deviceScaleFactor: 1,
     mobile: false,
   });
@@ -306,9 +442,9 @@ async function main() {
     }
     optCdp.close();
 
-    // 2. Open Side Panel page, scan, parse AI JSON, screenshot, apply & undo
+    // 2. Open Side Panel page at authentic 400x674 vertical sidebar size, scan, parse AI JSON, screenshot, apply & undo
     const sidepanelUrl = `chrome-extension://${extId}/src/sidepanel/sidepanel.html`;
-    const { cdp: spCdp } = await openTab(port, sidepanelUrl);
+    const { cdp: spCdp } = await openTab(port, sidepanelUrl, 400, 674);
     await sleep(500);
 
     const scanStats = await spCdp.eval(`
@@ -365,10 +501,8 @@ async function main() {
     assert.ok(previewRes.folderTitles.some((t) => t.startsWith('AI 对话与工具')));
 
     const spShot = await spCdp.send('Page.captureScreenshot', { format: 'png' });
-    fs.writeFileSync(path.join(ASSETS_DIR, 'store-screenshot-1.png'), Buffer.from(spShot.data, 'base64'));
-    console.log('[e2e] Saved assets/store-screenshot-1.png (1280x800)');
 
-    // Capture English SidePanel screenshot too (without mutating persisted bookmarks)
+    // Capture English SidePanel screenshot too (at 400x674)
     const manualPlanEn = {
       folders: ['AI Tools & Chat', 'Dev & Tech', 'Ops & Network'],
       assignments: [
@@ -395,8 +529,20 @@ async function main() {
       })()
     `);
     const spShotEn = await spCdp.send('Page.captureScreenshot', { format: 'png' });
-    fs.writeFileSync(path.join(ASSETS_DIR, 'store-screenshot-1-en.png'), Buffer.from(spShotEn.data, 'base64'));
-    console.log('[e2e] Saved assets/store-screenshot-1-en.png (1280x800)');
+
+    // Composite authentic 400px-wide vertical Side Panel onto 1280x800 Chrome showcase tabs
+    const { cdp: frameCdp } = await openTab(port, 'about:blank', 1280, 800);
+    fs.writeFileSync(
+      path.join(ASSETS_DIR, 'store-screenshot-1.png'),
+      await renderSidepanelStoreFrame(frameCdp, spShot.data, 'zh_CN')
+    );
+    console.log('[e2e] Saved assets/store-screenshot-1.png (1280x800 with 400px Side Panel)');
+    fs.writeFileSync(
+      path.join(ASSETS_DIR, 'store-screenshot-1-en.png'),
+      await renderSidepanelStoreFrame(frameCdp, spShotEn.data, 'en')
+    );
+    console.log('[e2e] Saved assets/store-screenshot-1-en.png (1280x800 with 400px Side Panel)');
+    frameCdp.close();
 
     // Switch back to zh_CN before Chinese apply/undo assertions
     await spCdp.eval(`
