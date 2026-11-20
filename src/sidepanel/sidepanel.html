@@ -45,11 +45,17 @@
         </div>
       </div>
       <p class="hint" id="scanNote">正在读取书签树...</p>
+      <div class="scope-toggles">
+        <label><input id="quickIncludeArchived" type="checkbox" /> 包含「历史归档」内书签</label>
+        <label><input id="quickIgnoreDate" type="checkbox" /> 忽略天数全量分类</label>
+        <label><input id="quickExtractFrequent" type="checkbox" /> 提取近期访问到「常用」</label>
+      </div>
     </section>
 
     <section class="card">
       <div class="card-head">
         <h2>2. 生成整理预览</h2>
+        <button id="btnEditPrompt" class="btn-ghost" type="button">自定义提示词</button>
       </div>
 
       <div class="mode-tabs" role="tablist" aria-label="AI 整理模式">

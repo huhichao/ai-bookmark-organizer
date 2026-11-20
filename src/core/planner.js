@@ -1,7 +1,7 @@
 import {
-  CLASSIFICATION_SYSTEM_PROMPT,
   buildClassificationUserPrompt,
   extractJsonObject,
+  getEffectiveSystemPrompt,
   invokeAiText,
 } from './ai-client.js';
 import { buildAiPayloadItems } from './sanitizer.js';
@@ -87,10 +87,26 @@ export function buildPlanFromAiResponse(analysis, rawAiResult, settings = {}) {
     }
   }
 
+  const folders = [];
+  const frequentName = settings.frequentFolderName || '常用';
+  const frequentList = (analysis.frequentItems || []).map((item) => ({
+    id: item.id,
+    title: item.title,
+    url: item.url,
+    folder: frequentName,
+    rename: item.cleanTitle !== item.title ? item.cleanTitle : '',
+  }));
+  if (frequentList.length > 0) {
+    const aiSame = groups.get(frequentName) || [];
+    groups.delete(frequentName);
+    folders.push({ name: frequentName, items: [...frequentList, ...aiSame] });
+  }
+  for (const [name, items] of groups.entries()) {
+    if (items.length > 0) folders.push({ name, items });
+  }
+
   return {
-    folders: [...groups.entries()]
-      .filter(([, items]) => items.length > 0)
-      .map(([name, items]) => ({ name, items })),
+    folders,
     tempItems,
     duplicateRemovals: settings.deduplicateArchive === false ? [] : analysis.duplicateRemovals,
     emptyFoldersCount: analysis.emptyFolders.length,
@@ -126,7 +142,8 @@ export async function generateAiOrganizationPlan(analysis, settings, onProgress 
       : settings.customPromptHint;
 
     const userPrompt = buildClassificationUserPrompt(payload, hint);
-    const rawText = await invokeAiText(settings, CLASSIFICATION_SYSTEM_PROMPT, userPrompt);
+    const systemPrompt = getEffectiveSystemPrompt(settings);
+    const rawText = await invokeAiText(settings, systemPrompt, userPrompt);
     const parsed = extractJsonObject(rawText);
 
     for (const f of parsed.folders || []) {
@@ -151,5 +168,5 @@ export function buildManualPromptBundle(analysis, settings) {
   const payload = buildAiPayloadItems(analysis.activeItems, {
     stripQueryParams: settings.stripQueryParams !== false,
   });
-  return `${CLASSIFICATION_SYSTEM_PROMPT}\n\n${buildClassificationUserPrompt(payload, settings.customPromptHint)}`;
+  return `${getEffectiveSystemPrompt(settings)}\n\n${buildClassificationUserPrompt(payload, settings.customPromptHint)}`;
 }

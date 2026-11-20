@@ -206,6 +206,22 @@ async function main() {
     console.log('[e2e] Options Test Connection result:', testMockMsg);
     assert.ok(testMockMsg.includes('连接成功'), `Expected connection success, got: ${testMockMsg}`);
 
+    // Verify custom prompt field, template selector, and reset button work
+    const promptOk = await optCdp.eval(`
+      (() => {
+        const ta = document.getElementById('customPrompt');
+        const sel = document.getElementById('promptTemplate');
+        if (!ta.value.includes('分类原则')) throw new Error('Expected default prompt pre-filled');
+        if (sel.options.length < 4) throw new Error('Expected >= 4 prompt templates');
+        sel.value = 'minimal_top';
+        sel.dispatchEvent(new Event('change'));
+        if (!ta.value.includes('常用置顶')) throw new Error('Expected minimal_top template loaded');
+        document.getElementById('btnResetPrompt').click();
+        return ta.value.includes('AI 对话与工具');
+      })()
+    `);
+    assert.equal(promptOk, true);
+
     // Reset back to DeepSeek preset before screenshot
     await optCdp.eval(`
       (() => {

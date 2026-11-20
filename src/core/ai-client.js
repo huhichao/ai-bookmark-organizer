@@ -1,20 +1,27 @@
-export const CLASSIFICATION_SYSTEM_PROMPT = `你是一个专业的浏览器书签整理助手。
-你的任务是将用户提供的一批“近期活跃/散落书签”归类到清晰简洁的主题文件夹中，并识别出明显属于一次性/过期促销/临时测试/隐私政策页的链接（归入 "__TEMP__" 特殊桶，表示放入「历史归档/临时与一次性链接」）。
+import { DEFAULT_CLASSIFICATION_PROMPT } from './constants.js';
 
-要求：
-1. 主题文件夹数量控制在 4～8 个之间，名称简短清晰（纯中文或常见英文缩写，不加多余符号），例如：AI 对话与工具、AI API与订阅、开发与技术、运维与网络、工作与项目、设计与效率。
-2. 每个书签只能分配到一个目标文件夹，必须保留原始 id 不变。
-3. 如果书签标题存在明显乱码或多余前缀，可在 rename 中给出清理后的标题；否则不要改名。
-4. 严格只输出合法 JSON，不要输出解释文字。
+export const JSON_SCHEMA_CONTRACT = `输出格式要求（不可更改）：
+- 严格只输出合法 JSON，不要输出任何解释文字或 Markdown 以外的多余文本。
+- 每个输入的 id 都必须在 assignments 中出现且保持原样。
+- 如需将一次性/临时/过期链接归入临时桶，将 folder 设为 "__TEMP__"；如需改名可附加可选字段 "rename"。
 
 输出 JSON Schema：
 {
-  "folders": ["AI 对话与工具", "开发与技术"],
+  "folders": ["主题文件夹1", "主题文件夹2"],
   "assignments": [
-    { "id": "1520", "folder": "AI 对话与工具" },
+    { "id": "1520", "folder": "主题文件夹1" },
     { "id": "1547", "folder": "__TEMP__" }
   ]
 }`;
+
+export const CLASSIFICATION_SYSTEM_PROMPT = `${DEFAULT_CLASSIFICATION_PROMPT}\n\n${JSON_SCHEMA_CONTRACT}`;
+
+export function getEffectiveSystemPrompt(settings = {}) {
+  const customRules = typeof settings.customPrompt === 'string' && settings.customPrompt.trim()
+    ? settings.customPrompt.trim()
+    : DEFAULT_CLASSIFICATION_PROMPT;
+  return `${customRules}\n\n${JSON_SCHEMA_CONTRACT}`;
+}
 
 export function buildClassificationUserPrompt(payloadItems, customHint = '') {
   const hintBlock = customHint?.trim()

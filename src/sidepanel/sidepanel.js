@@ -7,7 +7,7 @@ import {
   generateAiOrganizationPlan,
 } from '../core/planner.js';
 import { getLastSnapshot, restoreLastSnapshot } from '../core/snapshot.js';
-import { loadSettings } from '../core/storage.js';
+import { loadSettings, saveSettings } from '../core/storage.js';
 
 let currentAnalysis = null;
 let currentPlan = null;
@@ -26,6 +26,9 @@ async function refreshHeaderAndSnapshot() {
   const preset = PROVIDER_PRESETS[currentSettings.provider];
   const label = preset ? preset.label : currentSettings.provider;
   el('modelBadge').textContent = `${label} · ${currentSettings.model || '未指定模型'}`;
+  el('quickIncludeArchived').checked = Boolean(currentSettings.includeArchived);
+  el('quickIgnoreDate').checked = Boolean(currentSettings.ignoreDateCutoff);
+  el('quickExtractFrequent').checked = Boolean(currentSettings.extractFrequent);
 
   const snap = await getLastSnapshot();
   el('btnUndo').disabled = !snap;
@@ -37,6 +40,11 @@ async function scanBookmarks() {
   currentAnalysis = analyzeBookmarkTree(tree, {
     recentDays: currentSettings.recentDays,
     includeRootLoose: currentSettings.includeRootLoose,
+    includeArchived: Boolean(currentSettings.includeArchived),
+    ignoreDateCutoff: Boolean(currentSettings.ignoreDateCutoff),
+    extractFrequent: Boolean(currentSettings.extractFrequent),
+    frequentDays: currentSettings.frequentDays || 90,
+    frequentMaxCount: currentSettings.frequentMaxCount || 12,
     archiveFolderName: currentSettings.archiveFolderName,
   });
 
@@ -45,8 +53,9 @@ async function scanBookmarks() {
   el('statActive').textContent = String(stats.activeCount);
   el('statDup').textContent = String(stats.duplicateCount);
   el('statEmpty').textContent = String(stats.emptyFolderCount);
+  const freqText = stats.frequentCount > 0 ? `「${currentSettings.frequentFolderName || '常用'}」${stats.frequentCount} 条、` : '';
   el('scanNote').textContent =
-    `近期/书签栏待归类 ${stats.activeCount} 条，其余 ${stats.historicalCount} 条将保留在「${currentSettings.archiveFolderName}」。`;
+    `${freqText}待 AI 归类 ${stats.activeCount} 条，其余 ${stats.historicalCount} 条保留在「${currentSettings.archiveFolderName}」。`;
 }
 
 function renderPreview(plan) {
@@ -101,6 +110,27 @@ function renderPreview(plan) {
 el('btnOpenOptions').addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
 });
+
+el('btnEditPrompt').addEventListener('click', () => {
+  chrome.runtime.openOptionsPage();
+});
+
+async function handleScopeToggleChange() {
+  await saveSettings({
+    includeArchived: el('quickIncludeArchived').checked,
+    ignoreDateCutoff: el('quickIgnoreDate').checked,
+    extractFrequent: el('quickExtractFrequent').checked,
+  });
+  await scanBookmarks();
+  const freqPart = currentAnalysis.stats.frequentCount > 0
+    ? `「常用」${currentAnalysis.stats.frequentCount} 条、`
+    : '';
+  setStatus(`范围已更新：${freqPart}当前待 AI 归类 ${currentAnalysis.stats.activeCount} 条。`, 'info');
+}
+
+el('quickIncludeArchived').addEventListener('change', handleScopeToggleChange);
+el('quickIgnoreDate').addEventListener('change', handleScopeToggleChange);
+el('quickExtractFrequent').addEventListener('change', handleScopeToggleChange);
 
 el('btnScan').addEventListener('click', async () => {
   try {
@@ -225,9 +255,12 @@ el('btnUndo').addEventListener('click', async () => {
   }
 });
 
-chrome.storage.onChanged.addListener((changes, areaName) => {
+chrome.storage.onChanged.addListener(async (changes, areaName) => {
   if (areaName === 'local' && (changes[STORAGE_KEYS.SETTINGS] || changes[STORAGE_KEYS.SNAPSHOT])) {
-    refreshHeaderAndSnapshot();
+    await refreshHeaderAndSnapshot();
+    if (changes[STORAGE_KEYS.SETTINGS]) {
+      await scanBookmarks();
+    }
   }
 });
 

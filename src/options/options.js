@@ -1,5 +1,9 @@
 import { testAiConnection } from '../core/ai-client.js';
-import { PROVIDER_PRESETS } from '../core/constants.js';
+import {
+  DEFAULT_CLASSIFICATION_PROMPT,
+  PROMPT_TEMPLATES,
+  PROVIDER_PRESETS,
+} from '../core/constants.js';
 import { isUrlCoveredByPatterns, toOriginMatchPattern } from '../core/permissions.js';
 import { clearSnapshot, getLastSnapshot } from '../core/snapshot.js';
 import { loadSettings, saveSettings } from '../core/storage.js';
@@ -74,8 +78,20 @@ async function refreshSnapshotInfo() {
   el('btnClearSnapshot').disabled = false;
 }
 
+function populatePromptTemplates() {
+  const select = el('promptTemplate');
+  select.replaceChildren();
+  for (const tpl of Object.values(PROMPT_TEMPLATES)) {
+    const opt = document.createElement('option');
+    opt.value = tpl.id;
+    opt.textContent = tpl.label;
+    select.appendChild(opt);
+  }
+}
+
 async function init() {
   populateProviderOptions();
+  populatePromptTemplates();
   const s = await loadSettings();
   el('provider').value = s.provider;
   el('baseUrl').value = s.baseUrl;
@@ -86,10 +102,21 @@ async function init() {
   el('archiveFolderName').value = s.archiveFolderName;
   el('archiveLocation').value = s.archiveLocation;
   el('includeRootLoose').checked = Boolean(s.includeRootLoose);
+  el('includeArchived').checked = Boolean(s.includeArchived);
+  el('ignoreDateCutoff').checked = Boolean(s.ignoreDateCutoff);
+  el('extractFrequent').checked = Boolean(s.extractFrequent);
+  el('frequentDays').value = s.frequentDays || 90;
+  el('frequentMaxCount').value = s.frequentMaxCount || 12;
+  el('frequentConfigRow').classList.toggle('hidden', !s.extractFrequent);
   el('deduplicateArchive').checked = Boolean(s.deduplicateArchive);
   el('removeEmptyFolders').checked = Boolean(s.removeEmptyFolders);
   el('stripQueryParams').checked = Boolean(s.stripQueryParams);
-  el('customPromptHint').value = s.customPromptHint || '';
+  const effectivePrompt = (s.customPrompt && s.customPrompt.trim())
+    ? s.customPrompt
+    : DEFAULT_CLASSIFICATION_PROMPT;
+  el('customPrompt').value = effectivePrompt;
+  const matchedTpl = Object.values(PROMPT_TEMPLATES).find((t) => t.prompt.trim() === effectivePrompt.trim());
+  if (matchedTpl) el('promptTemplate').value = matchedTpl.id;
   updateProviderFieldVisibility(s.provider);
   await refreshGrantedOrigins();
   await refreshSnapshotInfo();
@@ -196,6 +223,24 @@ el('btnTestAi').addEventListener('click', async () => {
   }
 });
 
+el('extractFrequent').addEventListener('change', (e) => {
+  el('frequentConfigRow').classList.toggle('hidden', !e.target.checked);
+});
+
+el('promptTemplate').addEventListener('change', (e) => {
+  const tpl = PROMPT_TEMPLATES[e.target.value];
+  if (tpl) {
+    el('customPrompt').value = tpl.prompt;
+    setInlineStatus('rulesStatusMsg', `已加载模板「${tpl.label}」，可微调后点击「保存规则设置」。`, 'info');
+  }
+});
+
+el('btnResetPrompt').addEventListener('click', () => {
+  el('promptTemplate').value = 'balanced';
+  el('customPrompt').value = DEFAULT_CLASSIFICATION_PROMPT;
+  setInlineStatus('rulesStatusMsg', '已恢复默认分类提示词（记得点击「保存规则设置」生效）。', 'info');
+});
+
 el('btnSaveRules').addEventListener('click', async () => {
   await saveSettings({
     recentDays: Math.max(7, Number(el('recentDays').value) || 365),
@@ -203,12 +248,17 @@ el('btnSaveRules').addEventListener('click', async () => {
     archiveFolderName: el('archiveFolderName').value.trim() || '历史归档',
     archiveLocation: el('archiveLocation').value,
     includeRootLoose: el('includeRootLoose').checked,
+    includeArchived: el('includeArchived').checked,
+    ignoreDateCutoff: el('ignoreDateCutoff').checked,
+    extractFrequent: el('extractFrequent').checked,
+    frequentDays: Math.max(7, Number(el('frequentDays').value) || 90),
+    frequentMaxCount: Math.max(3, Math.min(30, Number(el('frequentMaxCount').value) || 12)),
     deduplicateArchive: el('deduplicateArchive').checked,
     removeEmptyFolders: el('removeEmptyFolders').checked,
     stripQueryParams: el('stripQueryParams').checked,
-    customPromptHint: el('customPromptHint').value.trim(),
+    customPrompt: el('customPrompt').value.trim() || DEFAULT_CLASSIFICATION_PROMPT,
   });
-  setInlineStatus('rulesStatusMsg', '整理规则设置已保存。', 'ok');
+  setInlineStatus('rulesStatusMsg', '整理规则与提示词已保存。', 'ok');
 });
 
 el('btnExportSnapshot').addEventListener('click', async () => {

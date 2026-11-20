@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanBookmarkTitle, sanitizeUrlForAi } from '../src/core/sanitizer.js';
 import { analyzeBookmarkTree } from '../src/core/analyzer.js';
-import { extractJsonObject } from '../src/core/ai-client.js';
+import { extractJsonObject, getEffectiveSystemPrompt, JSON_SCHEMA_CONTRACT } from '../src/core/ai-client.js';
 import { buildPlanFromAiResponse, FALLBACK_FOLDER_NAME } from '../src/core/planner.js';
 import { isUrlCoveredByPatterns, toOriginMatchPattern } from '../src/core/permissions.js';
+import { DEFAULT_CLASSIFICATION_PROMPT, PROMPT_TEMPLATES } from '../src/core/constants.js';
 
 test('toOriginMatchPattern and isUrlCoveredByPatterns strip ports and match hosts', () => {
   assert.equal(toOriginMatchPattern('http://127.0.0.1:11434/v1'), 'http://127.0.0.1/*');
@@ -114,4 +115,105 @@ test('buildPlanFromAiResponse preserves unassigned items in fallback folder', ()
   assert.equal(plan.folders[0].name, 'AI 工具');
   assert.equal(plan.folders[1].name, FALLBACK_FOLDER_NAME);
   assert.equal(plan.folders[1].items[0].id, '12');
+});
+
+test('analyzeBookmarkTree respects includeArchived and ignoreDateCutoff toggles', () => {
+  const now = new Date('2026-11-20T00:00:00Z').getTime();
+  const oldMs = new Date('2020-01-01T00:00:00Z').getTime();
+  const mockTree = [
+    {
+      id: '0',
+      title: '',
+      children: [
+        {
+          id: '1',
+          folderType: 'bookmarks-bar',
+          title: '书签栏',
+          children: [
+            {
+              id: '10',
+              title: '技术',
+              children: [{ id: '11', title: 'Old Sub', url: 'https://sub.example.com/', dateAdded: oldMs }],
+            },
+            {
+              id: '20',
+              title: '历史归档',
+              children: [{ id: '21', title: 'Archived', url: 'https://arch.example.com/', dateAdded: oldMs }],
+            },
+          ],
+        },
+        { id: '2', folderType: 'other', title: '其他书签', children: [] },
+      ],
+    },
+  ];
+
+  const defaultRes = analyzeBookmarkTree(mockTree, { nowMs: now });
+  assert.equal(defaultRes.stats.activeCount, 0);
+
+  const ignoreDateRes = analyzeBookmarkTree(mockTree, { nowMs: now, ignoreDateCutoff: true });
+  assert.equal(ignoreDateRes.stats.activeCount, 1);
+
+  const includeAllRes = analyzeBookmarkTree(mockTree, {
+    nowMs: now,
+    includeArchived: true,
+    ignoreDateCutoff: true,
+  });
+  assert.equal(includeAllRes.stats.activeCount, 2);
+});
+
+test('getEffectiveSystemPrompt preserves JSON schema contract with custom rules', () => {
+  const defaultPrompt = getEffectiveSystemPrompt({});
+  assert.ok(defaultPrompt.includes(DEFAULT_CLASSIFICATION_PROMPT));
+  assert.ok(defaultPrompt.includes(JSON_SCHEMA_CONTRACT));
+
+  const customPrompt = getEffectiveSystemPrompt({ customPrompt: '按工作和生活两大类整理' });
+  assert.ok(customPrompt.startsWith('按工作和生活两大类整理'));
+  assert.ok(customPrompt.includes(JSON_SCHEMA_CONTRACT));
+  assert.ok(Object.keys(PROMPT_TEMPLATES).length >= 4);
+});
+
+test('analyzeBookmarkTree extracts recently used bookmarks into frequentItems when enabled', () => {
+  const now = new Date('2026-11-20T00:00:00Z').getTime();
+  const veryRecentUse = now - 2 * 86400_000;
+  const recentUse = now - 10 * 86400_000;
+  const oldAdd = now - 500 * 86400_000;
+  const mockTree = [
+    {
+      id: '0',
+      title: '',
+      children: [
+        {
+          id: '1',
+          folderType: 'bookmarks-bar',
+          title: '书签栏',
+          children: [
+            { id: '10', title: 'Claude', url: 'https://claude.ai/', dateAdded: oldAdd, dateLastUsed: veryRecentUse },
+            { id: '11', title: 'DeepSeek', url: 'https://deepseek.com/', dateAdded: oldAdd, dateLastUsed: recentUse },
+            { id: '12', title: 'NeverUsed', url: 'https://unused.example.com/', dateAdded: now - 5 * 86400_000, dateLastUsed: 0 },
+          ],
+        },
+        { id: '2', folderType: 'other', title: '其他书签', children: [] },
+      ],
+    },
+  ];
+
+  const analysis = analyzeBookmarkTree(mockTree, {
+    nowMs: now,
+    extractFrequent: true,
+    frequentDays: 90,
+    frequentMaxCount: 5,
+  });
+
+  assert.equal(analysis.frequentItems.length, 2);
+  assert.equal(analysis.frequentItems[0].id, '10'); // most recently used first
+  assert.equal(analysis.activeItems.length, 1);
+  assert.equal(analysis.activeItems[0].id, '12');
+
+  const plan = buildPlanFromAiResponse(analysis, {
+    folders: ['工具'],
+    assignments: [{ id: '12', folder: '工具' }],
+  });
+  assert.equal(plan.folders[0].name, '常用');
+  assert.equal(plan.folders[0].items.length, 2);
+  assert.equal(plan.folders[1].name, '工具');
 });

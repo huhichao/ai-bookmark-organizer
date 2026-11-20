@@ -76,6 +76,21 @@ body {
   font-size: 13px;
 }
 
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.btn-link {
+  background: transparent;
+  color: var(--primary);
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .field small, .muted {
   color: var(--muted);
   font-size: 12px;

@@ -66,13 +66,34 @@
       </div>
       <div class="checks">
         <label><input id="includeRootLoose" type="checkbox" /> 始终整理书签栏根目录散落书签</label>
+        <label><input id="includeArchived" type="checkbox" /> 包含「历史归档」目录内的书签（关闭时跳过已归档目录）</label>
+        <label><input id="ignoreDateCutoff" type="checkbox" /> 忽略近期天数限制（全量书签交由 AI 重新分类）</label>
+        <label><input id="extractFrequent" type="checkbox" /> 自动提取近期点击访问的书签到「常用」文件夹</label>
         <label><input id="deduplicateArchive" type="checkbox" /> 自动清理完全重复的网址（保留最新）</label>
         <label><input id="removeEmptyFolders" type="checkbox" /> 归档后自动移除空文件夹</label>
         <label><input id="stripQueryParams" type="checkbox" /> 发送给 AI 前自动剥离 URL 查询参数（保护隐私）</label>
       </div>
+      <div class="grid-2" id="frequentConfigRow">
+        <div class="field">
+          <label for="frequentDays">「常用」最近访问天数</label>
+          <input id="frequentDays" type="number" min="7" max="365" />
+        </div>
+        <div class="field">
+          <label for="frequentMaxCount">「常用」最多提取条数</label>
+          <input id="frequentMaxCount" type="number" min="3" max="30" />
+        </div>
+      </div>
       <div class="field">
-        <label for="customPromptHint">补充分类偏好（可选）</label>
-        <textarea id="customPromptHint" rows="3" placeholder="例如：把公司内网系统统一放进「工作与项目」，技术文章放「开发与技术」"></textarea>
+        <label for="promptTemplate">预设提示词模板（快速切换风格）</label>
+        <select id="promptTemplate"></select>
+      </div>
+      <div class="field">
+        <div class="field-head">
+          <label for="customPrompt">自定义分类提示词（System Prompt）</label>
+          <button id="btnResetPrompt" class="btn-link" type="button">恢复默认提示词</button>
+        </div>
+        <textarea id="customPrompt" rows="8" placeholder="填写你的书签分类规则与文件夹偏好..."></textarea>
+        <small>可按自己的习惯自由修改分类逻辑；JSON 输出格式校验由系统自动附带，无需手写 Schema。</small>
       </div>
       <div class="actions">
         <button id="btnSaveRules" class="btn-primary" type="button">保存规则设置</button>

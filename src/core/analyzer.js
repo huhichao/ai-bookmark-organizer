@@ -23,6 +23,11 @@ export function analyzeBookmarkTree(tree, options = {}) {
   const {
     recentDays = 365,
     includeRootLoose = true,
+    includeArchived = false,
+    ignoreDateCutoff = false,
+    extractFrequent = false,
+    frequentDays = 90,
+    frequentMaxCount = 12,
     nowMs = Date.now(),
     archiveFolderName = '历史归档',
   } = options;
@@ -30,6 +35,7 @@ export function analyzeBookmarkTree(tree, options = {}) {
   const root = Array.isArray(tree) ? tree[0] : tree;
   const bar = findBookmarksBar(root);
   const cutoffMs = nowMs - recentDays * 24 * 60 * 60 * 1000;
+  const frequentCutoffMs = nowMs - frequentDays * 24 * 60 * 60 * 1000;
 
   const allUrls = [];
   const emptyFolders = [];
@@ -114,14 +120,32 @@ export function analyzeBookmarkTree(tree, options = {}) {
     }
   }
 
+  // Optional: extract recently visited bookmarks (by Chrome dateLastUsed) before AI classification
+  let frequentItems = [];
+  const frequentIds = new Set();
+  if (extractFrequent && frequentMaxCount > 0) {
+    frequentItems = keptItems
+      .filter((item) => {
+        const inArchiveAlready = item.parentPath.includes(archiveFolderName);
+        if (!includeArchived && inArchiveAlready) return false;
+        return item.dateLastUsed && item.dateLastUsed >= frequentCutoffMs;
+      })
+      .sort((a, b) => b.dateLastUsed - a.dateLastUsed)
+      .slice(0, frequentMaxCount);
+    for (const item of frequentItems) frequentIds.add(item.id);
+  }
+
   const activeItems = [];
   const historicalItems = [];
   for (const item of keptItems) {
+    if (frequentIds.has(item.id)) continue;
     const inArchiveAlready = item.parentPath.includes(archiveFolderName);
-    const shouldOrganize =
-      !inArchiveAlready &&
-      ((includeRootLoose && item.isLooseOnBar) || item.isRecent);
-    if (shouldOrganize) {
+    const passesArchiveFilter = includeArchived || !inArchiveAlready;
+    const passesRecencyFilter =
+      ignoreDateCutoff ||
+      (includeRootLoose && item.isLooseOnBar) ||
+      item.isRecent;
+    if (passesArchiveFilter && passesRecencyFilter) {
       activeItems.push(item);
     } else {
       historicalItems.push(item);
@@ -139,10 +163,12 @@ export function analyzeBookmarkTree(tree, options = {}) {
       duplicateCount: duplicateRemovals.length,
       folderCount,
       emptyFolderCount: emptyFolders.length,
+      frequentCount: frequentItems.length,
       activeCount: activeItems.length,
       historicalCount: historicalItems.length,
       dirtyTitleCount,
     },
+    frequentItems,
     activeItems,
     historicalItems,
     duplicateRemovals,
